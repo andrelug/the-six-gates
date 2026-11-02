@@ -1,0 +1,6 @@
+.claude
+tests
+test-results
+playwright-report
+*.docx
+PROMPT-MVP.md

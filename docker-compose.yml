@@ -1,0 +1,10 @@
+# Runs behind the existing reverse proxy on the VPS, which terminates HTTPS and forwards to port 3000.
+services:
+  six-gates:
+    build: .
+    restart: unless-stopped
+    ports: ["127.0.0.1:3000:3000"]
+    env_file: [{ path: .env, required: false }] # ANTHROPIC_API_KEY=... and ADMIN_PASSWORD=... (the /admin panel stays closed without it)
+    volumes: ["six-gates-data:/data"]
+volumes:
+  six-gates-data:

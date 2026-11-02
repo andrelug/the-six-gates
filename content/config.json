@@ -1,0 +1,136 @@
+{
+  "energia": {
+    "max": 100,
+    "regen": 10,
+    "regenMs": 6000
+  },
+  "treino": {
+    "custo": 20,
+    "saude": 4,
+    "xp": 10
+  },
+  "bico": {
+    "custo": 20,
+    "creditos": 120,
+    "xp": 10
+  },
+  "curso": {
+    "duracaoMs": 40000,
+    "xp": 30
+  },
+  "niveis": [
+    0,
+    30,
+    130,
+    260,
+    420,
+    600,
+    800
+  ],
+  "banimento": {
+    "aposMissaoMs": 30000,
+    "aposRecusaMs": 40000,
+    "aoConcluirTarefas": true
+  },
+  "portoes": [
+    "Dinheiro",
+    "Corpo",
+    "Trabalho",
+    "Mente",
+    "Pessoas",
+    "Propósito"
+  ],
+  "tarefas": [
+    "guardar",
+    "amigo",
+    "saude",
+    "habilidade",
+    "tesouro"
+  ],
+  "mundoInicial": {
+    "creditos": 5311,
+    "saude": 31,
+    "reputacao": 0,
+    "renda": 1300,
+    "gasto": 1050
+  },
+  "ia": {
+    "porJogadorPorHora": 40,
+    "porIpPorHora": 120,
+    "maxCaracteres": 300
+  },
+  "locais": [
+    "apartamento",
+    "academia",
+    "educacao",
+    "agencia",
+    "shopping",
+    "banco",
+    "posto",
+    "viaduto",
+    "praca"
+  ],
+  "ranks": {
+    "dinheiro": [
+      0,
+      2000,
+      8000,
+      30000,
+      100000
+    ],
+    "corpo": [
+      0,
+      40,
+      55,
+      70,
+      90
+    ],
+    "trabalho": [
+      0,
+      1500,
+      2500,
+      4000,
+      7000
+    ],
+    "mente": [
+      0,
+      1,
+      2,
+      4,
+      6
+    ],
+    "pessoas": [
+      -99,
+      1,
+      3,
+      6,
+      10
+    ],
+    "proposito": [
+      0,
+      99999,
+      99999,
+      99999,
+      99999
+    ]
+  },
+  "cursos": [
+    {
+      "id": "programacao",
+      "duracaoMs": 40000
+    },
+    {
+      "id": "mandarim",
+      "duracaoMs": 40000
+    },
+    {
+      "id": "culinaria",
+      "duracaoMs": 40000
+    },
+    {
+      "id": "eletronica",
+      "duracaoMs": 40000,
+      "requer": "bolsa"
+    }
+  ]
+}

@@ -1,0 +1,150 @@
+[
+  {
+    "id": "treino",
+    "tipo": "principal",
+    "tutorial": true,
+    "local": "academia",
+    "ordem": 1,
+    "xp": 15
+  },
+  {
+    "id": "vaga",
+    "tipo": "principal",
+    "tutorial": true,
+    "local": "agencia",
+    "ordem": 2,
+    "xp": 30,
+    "rank": {
+      "corpo": 2
+    }
+  },
+  {
+    "id": "bico",
+    "tipo": "principal",
+    "tutorial": true,
+    "local": "agencia",
+    "ordem": 3,
+    "xp": 20,
+    "min": {
+      "energia": 40
+    }
+  },
+  {
+    "id": "matricula",
+    "tipo": "principal",
+    "tutorial": true,
+    "local": "educacao",
+    "ordem": 4,
+    "xp": 30,
+    "rank": {
+      "trabalho": 2
+    },
+    "min": {
+      "nivel": 3
+    }
+  },
+  {
+    "id": "cachorro",
+    "tipo": "principal",
+    "roteirizada": true,
+    "ordem": 5,
+    "tutorial": true,
+    "xp": 40
+  },
+  {
+    "id": "ato1",
+    "tipo": "principal",
+    "roteirizada": true,
+    "ordem": 6,
+    "xp": 50,
+    "tutorial": true
+  },
+  {
+    "id": "semana1",
+    "tipo": "principal",
+    "local": "praca",
+    "ordem": 7,
+    "rank": {
+      "corpo": 3,
+      "mente": 3,
+      "dinheiro": 3,
+      "pessoas": 2
+    },
+    "xp": 100
+  },
+  {
+    "id": "aluguel",
+    "tipo": "lateral",
+    "descobre": "mensagem",
+    "ordem": 10,
+    "xp": 30
+  },
+  {
+    "id": "banco",
+    "tipo": "lateral",
+    "descobre": "mensagem",
+    "ordem": 11,
+    "rank": {
+      "dinheiro": 2
+    },
+    "xp": 20
+  },
+  {
+    "id": "parceiro",
+    "tipo": "lateral",
+    "local": "academia",
+    "descobre": "academia",
+    "ordem": 20,
+    "rank": {
+      "corpo": 2
+    },
+    "xp": 20
+  },
+  {
+    "id": "turno",
+    "tipo": "lateral",
+    "local": "agencia",
+    "descobre": "agencia",
+    "ordem": 21,
+    "rank": {
+      "trabalho": 2
+    },
+    "min": {
+      "energia": 40
+    },
+    "xp": 30
+  },
+  {
+    "id": "bolsa",
+    "tipo": "lateral",
+    "local": "educacao",
+    "descobre": "educacao",
+    "ordem": 22,
+    "rank": {
+      "mente": 2
+    },
+    "xp": 20
+  },
+  {
+    "id": "sorvete",
+    "tipo": "lateral",
+    "local": "shopping",
+    "descobre": "shopping",
+    "ordem": 23,
+    "rank": {
+      "pessoas": 2
+    },
+    "xp": 20
+  },
+  {
+    "id": "viaduto",
+    "tipo": "lateral",
+    "local": "viaduto",
+    "descobre": "viaduto",
+    "ordem": 24,
+    "min": {
+      "tesouro": 1
+    },
+    "xp": 30
+  }
+]

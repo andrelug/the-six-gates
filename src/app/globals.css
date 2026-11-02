@@ -1,0 +1,100 @@
+/* Two surfaces: the "white screen" the story starts on, and the dark city console that grows out of it. */
+:root {
+  --paper: #fbfbfc;
+  --ink: #121419;
+  --mute: #6a6f7d;
+  --line: #e2e4ea;
+  --signal: #2a3cf5;
+  --good: #1d7f55;
+  --bad: #b4351c;
+  --dead: #b9bcc6;
+  --f-ai: 'Martian Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --f-ui: 'Hanken Grotesk', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --f-tit: 'Barlow Condensed', 'Arial Narrow', system-ui, sans-serif;
+  /* one loud colour per thing (menu items, actions, stats), anime-gacha style */
+  --amarelo: #ffd23f;
+  --rosa: #ff3d8b;
+  --ciano: #2de2e6;
+  --violeta: #9b6bff;
+  --lima: #b6ff3b;
+  --laranja: #ff8a3d;
+  --verde: #22d3a6;
+  --tinta: #0a0d24;
+  /* slanted panel edges */
+  --corte: polygon(0 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
+  --corte2: polygon(12px 0, 100% 0, calc(100% - 12px) 100%, 0 100%);
+
+  /* console tokens (used once the first gate opens) */
+  --bg: var(--paper);
+  --surface: #ffffff;
+  --surface-2: #f3f4f8;
+  --text: var(--ink);
+  --text-mute: var(--mute);
+  --border: var(--line);
+  --accent: var(--signal);
+  --accent-soft: rgba(42, 60, 245, 0.1);
+  --gold: #b8791a;
+  --raio: 12px;
+  color-scheme: light;
+}
+body[data-fase='escuro'] {
+  --bg: #070a1c;
+  --surface: rgba(14, 19, 52, 0.88);
+  --surface-2: #19205a;
+  --text: #f4f6ff;
+  --text-mute: #a3acd9;
+  --border: #2c357a;
+  --accent: var(--rosa);
+  --accent-soft: rgba(255, 61, 139, 0.16);
+  --gold: var(--amarelo);
+  --good: var(--lima);
+  --bad: #ff5470;
+  --dead: #4b5368;
+  --raio: 6px;
+  color-scheme: dark;
+}
+/* the guide you chose tints the console */
+body[data-lado='faccao'] { --accent: var(--lima); --accent-soft: rgba(182, 255, 59, 0.14); }
+body[data-lado='governo'] { --accent: var(--ciano); --accent-soft: rgba(45, 226, 230, 0.14); }
+body[data-lado='sozinho'] { --accent: #f4f6ff; --accent-soft: rgba(244, 246, 255, 0.12); }
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--f-ui);
+  font-size: 16px;
+  line-height: 1.55;
+  transition: background-color 1.4s ease, color 1.4s ease;
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0 0 auto;
+  height: env(safe-area-inset-top, 0px);
+  z-index: 100;
+  background: var(--bg);
+}
+button { font: inherit; color: inherit; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* the city itself is the backdrop of the console, darkened so panels stay readable */
+body[data-fase='escuro']::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(7, 10, 28, 0.94) 0%, rgba(7, 10, 28, 0.72) 45%, rgba(7, 10, 28, 0.88) 100%),
+    radial-gradient(50vw 40vw at 85% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%),
+    url('/img/cidade.jpg') center / cover no-repeat,
+    #070a1c;
+}
