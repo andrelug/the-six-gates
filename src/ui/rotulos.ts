@@ -87,13 +87,25 @@ export const R = {
   cursoOcupado: 'Em andamento',
   cursoTrancado: 'Trancado',
   proximo: 'Próximo passo',
+  dicaPasso: 'Sugestão',
+  contador: 'ações sem autorização',
+  leve: 'Leve',
+  pesado: 'Série pesada',
+  seguro: 'Bico',
+  arriscado: 'Sem nota',
+  risco: 'risco',
+  energetico: 'Energético',
+  energeticoSub: 'Quiosque do shopping',
+  loja: 'Compras',
+  somLigado: 'Som ligado',
+  somDesligado: 'Som desligado',
   misterio: '???',
   chaveMin: { energia: 'Energia', tesouro: 'Pista do tesouro', nivel: 'Nível' } as Record<string, string>,
   naPraca: 'Você está',
   verCidade: 'Ver a cidade',
   novo: 'Novo',
   // names shown on the spotlight when something is revealed (keys match data-foco)
-  foco: { carteira: 'Carteira', saude: 'Saúde', energia: 'Energia', xp: 'XP e Nível', reputacao: 'Reputação', portoes: 'Pilares', treino: 'Treino', trabalho: 'Trabalho', educacao: 'Educação', cidade: 'Cidade', missoes: 'Missões', mensagens: 'Mensagens', perfil: 'Perfil', ia: 'Sua IA', passo: 'Próximo passo', tarefas: 'Tarefas' } as Record<string, string>,
+  foco: { carteira: 'Carteira', saude: 'Saúde', energia: 'Energia', xp: 'XP e Nível', reputacao: 'Reputação', portoes: 'Pilares', treino: 'Treino', trabalho: 'Trabalho', educacao: 'Educação', cidade: 'Cidade', missoes: 'Missões', mensagens: 'Mensagens', perfil: 'Perfil', ia: 'Sua IA', passo: 'Próximo passo', tarefas: 'Tarefas', contador: '???' } as Record<string, string>,
 } as const;
 
 // What each gate measures (from the plan's table).

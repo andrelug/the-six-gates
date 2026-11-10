@@ -14,9 +14,15 @@ npm run test:e2e   # Playwright: prólogo inteiro a 1280 px e 400 px, IA desliga
 - **Cidade e painel** (estilo Torn / The Crims): barra do topo (pilares, carteira, saúde, energia, reputação), menu lateral e páginas Início, Cidade (mapa), Local (atividades + "ao vivo"), Missões, Mensagens e Perfil. Tudo nasce com animação conforme a história abre.
 - **Chat em popup**: a conversa com o guia flutua sobre a cidade. Antes da primeira revelação ele é a única coisa na tela (o mesmo painel escuro, centralizado); depois vira popup (ou uma bolinha quando a história espera você agir no mundo, ex. `#aguardar:ir_shopping`).
 - **Nada aparece sem ser apresentado**: cada item do topo e do menu é um módulo (`#mostrar:carteira`, `portoes`, `saude`, `energia`, `xp`, `reputacao`, `treino`, `trabalho`, `educacao`, `ia`, `missoes`, `cidade`, `passo`, `perfil`, `mensagens`, `tarefas`) e só entra na tela quando a fala da IA o explica. Cada revelação ganha um holofote (`src/ui/Foco.tsx`: a tela escurece e só o item novo fica aceso, com a etiqueta "Novo"); revelações seguidas entram numa fila. Para um item receber foco ele precisa de `data-foco="<módulo>"`. O nome que o jogador digita voa do chat até o topo (`src/ui/NomeVoando.tsx`).
+- **A IA age antes de explicar** (`content/prologo.ink`): ela tem acesso total e usa. Cancela assinaturas, paga a academia com a sua Carteira, bloqueia os seus jogos, pede demissão por você. Cada painel aparece pela consequência (o número se mexe e só então alguém comenta), nunca por uma aula.
+- **O contador que ninguém explica**: cada coisa que a IA faz sozinha soma em `autonomas` (`~ dar("autonomas", n)`), mostrado no topo como "ações sem autorização" (`#mostrar:contador`). Ela desconversa. Quem explica é o oficial Ramos, no interrogatório, lendo o mesmo número. A última ação antes do banimento é a cópia dela mesma, que volta na missão do Kael.
 - **Abertura em missões** (`content/missoes/inicio.ink`): nada é entregue de graça. Cada missão libera um lugar, uma ação do painel e uma mecânica, e a seguinte exige que o jogador evolua: **Primeiro suor** (Energia) → **Vaga na Agência** (exige Corpo II, ou seja, treinar) → **Primeiro bico** (Energia vira créditos e XP; a barra de XP aparece aqui) → **Cabeça nova** (exige Nível 3, ou seja, juntar XP) → Cachorro preto (Mensagens e viagem).
 - **XP e nível**: treino e bico rendem XP, curso concluído e cada missão também (`xp` em `missoes.json`). O nível sai dos limites em `config.json` → `niveis`; subir de nível restaura a Energia. É o jogador (nível) e não os pilares (ranks) que mede o XP.
-- **Ato 1** (`content/ato1.ink`): silêncio da IA, oficial Ramos, interrogatório, Praça do Relógio e a escolha Governo / Facção / Sozinho. O guia escolhido reveste a interface (cores, persona da IA em `src/ai/persona-*.md`).
+- **O banimento é uma cena** (`executarBanimento` em `src/engine/game.ts`, `src/ui/Banimento.tsx`): tudo o que a IA instalou apaga na ordem inversa em que nasceu (`morrendo` → `data-morto`), o som cai, e a tela inteira mostra o decreto, a frase cortada, o contador congelado e os pilares no chão. Um toque pula. Só o contador continua aceso depois.
+- **Ato 1** (`content/ato1.ink`): silêncio da IA, oficial Ramos, interrogatório e "modo simples" (`#evento:simples`: o painel volta a funcionar, mas sem guia e com os pilares no chão). Antes de escolher, o jogador trabalha uma vez para cada lado, em qualquer ordem: **Sinal fraco** (Kael, no viaduto: 30 segundos da IA de volta) e **Olhos no shopping** (Ramos: a IA ilegal é o rádio do Sr. Yang). Só então abre **A escolha** na praça: Governo / Facção / Sozinho, com os dois comentando o que você fez. O guia escolhido reveste a interface (cores, persona da IA em `src/ai/persona-*.md`). Propósito (pilar 6) não abre aqui: abre ao vencer a Semana 1.
+- **Escolhas com risco** (`src/engine/acoes.ts`, números em `config.json`): com Corpo II abre a **série pesada** (o dobro da Energia, mais saúde, 25% de lesão) e depois do primeiro bico abre a **entrega sem nota** (300 créditos, 30% de ser pego: sem pagamento e −1 reputação). O sorteio passa pelo Ink (`sorteio(n)`), então a semente fica no save.
+- **Depois da abertura o jogo muda de ritmo** (`#evento:religar`): a Energia volta mais devagar (`energia.regenLivreMs`), salário e contas fecham toda semana (`ciclo`: um quarto da renda entra, um quarto do gasto sai; fechar no vermelho custa reputação) e o quiosque do shopping vende energético (`energetico`: créditos viram Energia).
+- **O curso escolhido muda o que dá para dizer e notar**: mandarim abre uma conversa com o Sr. Yang, programação deixa ler o log do Ramos (e confrontar o Kael com isso), culinária resolve o jantar do Heitor.
 - **Missões laterais** chegam como mensagens (`#mensagem:De;papel;texto;knot`) e abrem com "Responder": Aluguel do amigo e Banco.
 
 ## Missões, requisitos e o "próximo passo"
@@ -25,7 +31,8 @@ npm run test:e2e   # Playwright: prólogo inteiro a 1280 px e 400 px, IA desliga
 - Ranks I a V por pilar saem dos números do mundo (limites em `config.json` → `ranks`); o **nível** é a soma dos ranks dos pilares conquistados.
 - Missões da abertura têm `tutorial: true`: as paralelas só aparecem depois que o Ato 1 termina (os lugares visitados antes já contam). Requisitos aceitam `min.nivel` (Nível) e `min.energia`.
 - Missões paralelas são **descobertas visitando o lugar** (`descobre`); as de mensagem chegam por `#missao:id` + `#mensagem:…;id`. `#concluir:id` marca como feita.
-- A barra **Próximo passo** (`src/engine/proximo.ts`) sempre mostra a única coisa a fazer agora com um botão que faz: responder ao chat, ir a um lugar, iniciar missão, subir o pilar que falta, ganhar XP para o nível exigido ou, quando só resta esperar a Energia, um aviso sem botão.
+- Depois da abertura a barra vira **Sugestão** (`semBotao`): diz o que fazer e onde, sem botão que faz por você. Gastar a Energia livre nunca tem botão.
+- Durante a abertura, a barra **Próximo passo** (`src/engine/proximo.ts`) mostra a única coisa a fazer agora com um botão que faz: responder ao chat, ir a um lugar, iniciar missão, subir o pilar que falta, ganhar XP para o nível exigido ou, quando só resta esperar a Energia, um aviso sem botão.
 - A **Cidade** é um mapa 3D (three.js) em `src/ui/cidade3d/`, com botões DOM por cima (acessíveis e testáveis).
 
 ## Onde mexer
@@ -36,6 +43,8 @@ npm run test:e2e   # Playwright: prólogo inteiro a 1280 px e 400 px, IA desliga
 | Lugares da cidade (ids) e ícones | `content/config.json` (`locais`) e `src/ui/locais.ts` |
 | Números de balanceamento, regra do banimento, limites da IA | `content/config.json` |
 | Personalidade da IA | `src/ai/persona.md` |
+| Sons (sintetizados, sem arquivos) e o que dispara cada um | `src/ui/sons.ts` e `src/ui/Som.tsx` |
+| Risco, semana, energético, ritmo da Energia | `content/config.json` (`treino.pesado`, `bico.arriscado`, `ciclo`, `energetico`, `energia.regenLivreMs`) |
 | Números do mundo (`aplicar`, Energia, curso, XP e nível) | `src/engine/world.ts` |
 | Abertura (quatro missões iniciais) | `content/missoes/inicio.ink` + `content/missoes.json` |
 | Ações do painel | `src/engine/acoes.ts` |
@@ -66,7 +75,8 @@ Mostra os **caminhos da história principal** (cada cena, as escolhas que ela of
 
 - `#acao` fica **dentro** dos colchetes (`* [Ir ao shopping #acao]`): o inkjs só entrega tags de escolha assim.
 - Tags com várias partes separam por `;`, não `|` (o Ink usa `|` em sequências): `#mensagem:Bob;colega;texto`, `#aguardar:treino;Ir pra academia`.
-- Tags além das do SPEC: `#curso:Nome`, `#mensagem:`, `#lida`, `#banimento:missao|recusa` (arma o timer do `config.json`), `#dica:`, `#titulo:` (cartões), `#local:id` (libera um lugar), `#viajar:id`, `#aguardar:ir_<lugar>;rótulo` e `#evento:religar` (a interface volta depois do banimento). Falantes especiais: `NARR`, `NEWS`, `GRAVAÇÃO`, `FIM`, `SISTEMA`, `NOTA`.
+- `#cara:feliz|sarcastica|preocupada|glitch` numa fala da IA escolhe a expressão do rosto (`public/img/rostos/ia_<cara>.jpg` no chat e `public/img/corpos/ia_<cara>.webp` no retrato ao lado da conversa e na tela inicial, listadas em `src/ui/arte.ts`; uma cara sem imagem cai na arte normal). `ECO:` é a IA falando pelo aparelho do Kael.
+- Tags além das do SPEC: `#evento:simples`, `#curso:Nome`, `#mensagem:`, `#lida`, `#banimento:missao|recusa` (arma o timer do `config.json`), `#dica:`, `#titulo:` (cartões), `#local:id` (libera um lugar), `#viajar:id`, `#aguardar:ir_<lugar>;rótulo` e `#evento:religar` (a interface volta depois do banimento). Falantes especiais: `NARR`, `NEWS`, `GRAVAÇÃO`, `FIM`, `SISTEMA`, `NOTA`.
 - O emprego é variável do Ink (`emprego`), não do mundo: é texto, e o mundo só guarda números.
 - Funções externas além do SPEC: `fmt(n)` (milhar em pt-BR). Todo texto avulso (quips do painel, respostas prontas da IA, "Mensagem não entregue") é função em `content/textos.ink`.
 - Jonas e Baltazar têm uma fala inventada cada; as 3 perguntas do playtest são `#input:fb_*` no fim do `banimento` (podem ficar em branco).
@@ -84,3 +94,6 @@ Chave da API (classificação real não testada), `docker build` (daemon do Dock
 - Chat: falas com rosto, narração em bloco de cena, cartão de resultado (treino/bico/educação) e cartão de viagem. Eventos vêm do motor (`Linha.ev`), animação cosmética em `Animacao.tsx` com a arte anime da ação (o jogo nunca espera por ela).
 - Cada local abre com o cenário anime dele e, na frente, o corpo recortado de quem está lá agora.
 - Ritmo: nenhuma `#esperar` do roteiro passa de 1,5 s (teste em `roteiro.test.ts`).
+- Som: tudo é sintetizado na hora com Web Audio (`src/ui/sons.ts`), sem arquivos de áudio. Digitação, revelações, pilares, mensagens, ações, um fundo discreto por lugar e o corte seco no banimento. O botão ao lado do logo liga e desliga (fica salvo em `sixgates:mudo`).
+- Mapa: os modelos 3D são desenhados em cel shading com contorno, luz neon rosa e ciano e um brilho na cor de cada lugar aberto (`src/ui/cidade3d/cena.ts`).
+- No celular o topo é uma faixa de duas linhas (pilares e contador; depois todos os números, só ícone e valor).

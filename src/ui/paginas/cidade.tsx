@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useState } from 'react';
 import { config } from '@/engine/config';
-import { MISSOES } from '@/engine/missoes';
+import { MISSOES, tutorialFeito } from '@/engine/missoes';
 import { valor } from '@/engine/world';
 import { useEstado, useIr, useJogo } from '../contexto';
 import { Icone } from '../icones';
@@ -11,7 +11,7 @@ import { LOCAIS } from '../locais';
 import { R } from '../rotulos';
 import s from '../ui.module.css';
 import { LinhaPessoas } from './pessoas';
-import { Cabecalho, CartaoAcao, CartaoMissao } from './comum';
+import { Cabecalho, CartaoAcao, CartaoEnergetico, CartaoMissao } from './comum';
 import { Rosto } from '../Rosto';
 import { srcCorpo, srcLocal } from '../arte';
 import { idDe, personagemDe } from '../personagens';
@@ -85,6 +85,7 @@ export function Local({ id }: { id: string }) {
   const aqui = atual === id;
   const missoes = MISSOES.filter((m) => m.local === id && !m.roteirizada && vistas.includes(m.id));
   const pendentes = missoes.filter((m) => !feitas.includes(m.id)).length;
+  const loja = id === 'shopping' && tutorialFeito(feitas);
   return (
     <div className={s.pagina}>
       <button type="button" className={s.btn} onClick={() => ir('cidade')}><Icone nome="mapa" tam={16} /> {R.voltar}</button>
@@ -127,6 +128,14 @@ export function Local({ id }: { id: string }) {
             </div>
           )}
           {id === 'educacao' && modulos.includes('educacao') && <Cursos />}
+          {loja && (
+            <>
+              <h2 className={s.h2}>{R.loja}</h2>
+              <div className={s.grade}>
+                <CartaoEnergetico />
+              </div>
+            </>
+          )}
           {missoes.length > 0 && (
             <>
               <h2 className={s.h2}>{R.missoes}</h2>
@@ -137,7 +146,7 @@ export function Local({ id }: { id: string }) {
               </div>
             </>
           )}
-          {!(meta?.acao && modulos.includes(meta.acao)) && missoes.length === 0 && <p className={s.vazio}>{R.semAtividade}</p>}
+          {!(meta?.acao && modulos.includes(meta.acao)) && missoes.length === 0 && !loja && <p className={s.vazio}>{R.semAtividade}</p>}
         </>
       ) : (
         <div className={s.pessoas}>

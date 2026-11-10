@@ -60,10 +60,34 @@
     "tutorial": true
   },
   {
+    "id": "favor_kael",
+    "tipo": "principal",
+    "tutorial": true,
+    "local": "viaduto",
+    "ordem": 7,
+    "xp": 40
+  },
+  {
+    "id": "favor_ramos",
+    "tipo": "principal",
+    "tutorial": true,
+    "local": "shopping",
+    "ordem": 8,
+    "xp": 40
+  },
+  {
+    "id": "escolha",
+    "tipo": "principal",
+    "tutorial": true,
+    "local": "praca",
+    "ordem": 9,
+    "xp": 30
+  },
+  {
     "id": "semana1",
     "tipo": "principal",
     "local": "praca",
-    "ordem": 7,
+    "ordem": 10,
     "rank": {
       "corpo": 3,
       "mente": 3,

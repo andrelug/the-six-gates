@@ -415,7 +415,7 @@
   .msg { grid-template-columns: 40px 1fr; }
   .centro { top: 5vh; height: calc(100dvh - 8vh); }
   .msg > :last-child { grid-column: 2; }
-  .passo { top: 98px; gap: 10px; padding: 8px 10px; }
+  .passo { top: 66px; gap: 10px; padding: 6px 10px; margin-bottom: 12px; }
   .passoIco { width: 36px; height: 36px; }
   .passoIco img { width: 30px; height: 30px; }
   .passoTxt b { font-size: 19px; }
@@ -430,20 +430,24 @@
   .acoesLinha { grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .acaoCard { min-height: 84px; }
   .mapaCarregando { height: 360px; }
-  .top { padding-block: 6px; }
-  .topIn { gap: 6px 10px; }
+  /* the HUD is one slim strip: pillars and the counter on the first line, every number on the second (icon + value, no labels) */
+  .top { padding-block: 4px; }
+  .topIn { gap: 4px 8px; }
   .brand, .jogador { display: none; }
-  .gates { width: 100%; justify-content: space-between; }
-  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; width: 100%; }
-  .stat { padding: 4px 14px 4px 6px; gap: 6px; }
-  .stat .bar { width: 100%; min-width: 60px; }
-  .statTxt { flex: 1; }
-  .statIco { width: 22px; height: 22px; }
-  .statIco img { width: 22px; height: 22px; }
-  .stats .small { font-size: 10.5px; }
-  .stat .big { font-size: 17px; }
-  .stat .label { font-size: 10px; gap: 4px; }
+  .gates { flex: 1; gap: 8px; }
+  .gates .count { font-size: 15px; }
+  .stats { order: 5; display: flex; flex-wrap: nowrap; gap: 3px; width: 100%; }
+  .stat { flex: 1 1 0; padding: 3px 4px 3px 3px; gap: 4px; border-left-width: 2px; clip-path: none; }
+  .stat:first-child { flex-grow: 1.45; }
+  .stat .bar { width: 100%; min-width: 0; height: 3px; }
+  .statTxt { flex: 1; gap: 2px; }
+  .statIco { width: 16px; height: 16px; }
+  .statIco img, .statIco svg { width: 16px; height: 16px; }
+  .stat .label { font-size: 0; gap: 0; }
+  .stat .label .small, .stats .small { font-size: 10.5px; white-space: nowrap; }
+  .stat .big { font-size: 14px; white-space: nowrap; }
   .stat .statTxt > .small { display: none; }
+  .delta { left: 18px; font-size: 13px; }
   .h1 { font-size: 30px; }
 }
 

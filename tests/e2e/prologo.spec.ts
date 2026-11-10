@@ -55,15 +55,20 @@ const naSemana1 = (p: Page) => p.getByText('Mensagem nova · Banco Lumen').first
 test('joga o prólogo e o Ato 1, com cidade, missões e próximo passo, sem erros e sem rolagem lateral', async ({ page }) => {
   const erros: string[] = [];
   page.on('pageerror', (e) => erros.push(e.message));
-  page.on('console', (m) => m.type() === 'error' && !m.text().includes('/api/ai') && !m.text().includes('503') && erros.push(m.text()));
+  // name the resource: the console only says "404", never which file
+  page.on('response', (r) => void (r.status() >= 400 && !r.url().includes('/api/ai') && erros.push(`${r.status()} ${r.url()}`)));
+  page.on('console', (m) => m.type() === 'error' && !m.text().includes('/api/ai') && !m.text().includes('503') && erros.push(`${m.text()} @ ${m.location().url}`));
   await page.goto('/?velocidade=25');
   await jogar(page, naSemana1);
-  await expect(page.getByText('6/6')).toBeVisible();
+  await expect(page.getByText('5/6')).toBeVisible(); // Propósito stays shut until the week is won
   await minimizar(page);
-  // the guide bar always offers the next action
+  // after the opening arc the bar only hints: it names the next thing and where it lives, with no button that does it
   const passo = page.getByLabel('Próximo passo');
   await expect(passo).toContainText('Aluguel do amigo');
-  await expect(passo.getByRole('button', { name: /Iniciar/ })).toBeVisible();
+  await expect(passo).toContainText('Mensagens');
+  await expect(passo.getByRole('button')).toHaveCount(0);
+  // the counter nobody explained is still on screen
+  await expect(page.getByTitle('ações sem autorização')).toBeVisible();
   // the city is a real page; visiting a place reveals its missions, which can be gated by a rank
   await menu(page).getByRole('button', { name: 'Cidade', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Cidade' })).toBeVisible();
@@ -79,8 +84,9 @@ test('joga o prólogo e o Ato 1, com cidade, missões e próximo passo, sem erro
   await expect(page.getByText('Semana 1 · Provar o seu valor')).toBeVisible();
   await menu(page).getByRole('button', { name: 'Perfil', exact: true }).click();
   await expect(page.getByText(/Rank I/).first()).toBeVisible();
-  // the guide's button starts the mission and the chat opens
-  await passo.getByRole('button', { name: /Iniciar/ }).click();
+  // the mission lives in the inbox: answering Davi starts it and the chat opens (the bank's message is newer, so Davi's is the second)
+  await menu(page).getByRole('button', { name: /Mensagens/ }).click();
+  await page.getByRole('button', { name: 'Responder' }).nth(1).click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByText(/Davi aparece na sua porta/)).toBeVisible({ timeout: 20_000 });
   await semRolagemLateral(page);

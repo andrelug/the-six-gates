@@ -2,17 +2,31 @@
   "energia": {
     "max": 100,
     "regen": 10,
-    "regenMs": 6000
+    "regenMs": 6000,
+    "regenLivreMs": 18000
   },
   "treino": {
     "custo": 20,
     "saude": 4,
-    "xp": 10
+    "xp": 10,
+    "pesado": {
+      "custo": 40,
+      "saude": 14,
+      "xp": 25,
+      "risco": 25,
+      "lesao": 4
+    }
   },
   "bico": {
     "custo": 20,
     "creditos": 120,
-    "xp": 10
+    "xp": 10,
+    "arriscado": {
+      "creditos": 300,
+      "xp": 15,
+      "risco": 30,
+      "reputacao": 1
+    }
   },
   "curso": {
     "duracaoMs": 40000,
@@ -52,7 +66,8 @@
     "saude": 31,
     "reputacao": 0,
     "renda": 1300,
-    "gasto": 1050
+    "gasto": 1050,
+    "autonomas": 4296
   },
   "ia": {
     "porJogadorPorHora": 40,
@@ -132,5 +147,13 @@
       "duracaoMs": 40000,
       "requer": "bolsa"
     }
-  ]
+  ],
+  "energetico": {
+    "preco": 150,
+    "energia": 40
+  },
+  "ciclo": {
+    "ms": 120000,
+    "max": 6
+  }
 }

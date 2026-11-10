@@ -4,7 +4,7 @@ Estilo único (comece TODO prompt com isto, para tudo ficar da mesma família):
 
 > Anime key-visual style, clean cel shading, crisp confident line art, vibrant high-contrast cyberpunk night palette (deep navy, hot pink, electric cyan, violet, yellow highlights), like a modern gacha RPG (Arknights, Blue Archive, Honkai Star Rail). No text, no letters, no logos, no watermark.
 
-Alvo visual da interface: `docs/estilos/anime_contraste_tela.jpg` e `docs/estilos/anime_contraste_chat.jpg` (anime + uma cor forte por item de menu). As imagens atuais foram geradas pelo Codex CLI do app ChatGPT (`codex exec` com a ferramenta de imagem).
+Alvo visual da interface: `docs/estilos/anime_contraste_tela.jpg` e `docs/estilos/anime_contraste_chat.jpg` (anime + uma cor forte por item de menu). As imagens atuais foram geradas pelo Codex CLI do app ChatGPT (`codex exec` com a ferramenta de imagem). O binário não fica no PATH: está em `/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex`.
 
 ## Ícones (fundo transparente) → `public/img/icones/<id>.png` (128×128)
 
@@ -32,6 +32,19 @@ Todo o elenco (ia, ramos, kael, alvaro, rita, heitor, davi, celia, neide, mary, 
 | jonas | Jonas, atendente da loja | rapaz de 22 anos, cansado, crachá, fundo cinza-rosado |
 | baltazar | Baltazar, segurança do shopping | homem de 60 anos, bigode, uniforme, postura firme, fundo cinza-azulado |
 | desconhecido | Número desconhecido | figura encapuzada, rosto na sombra com dois pontos de luz no lugar dos olhos, fundo preto-azulado |
+
+### Expressões da IA → `public/img/rostos/ia_<cara>.jpg` (512×512)
+
+Mesmo orbe do `ia.jpg`, mudando só o rosto. Geradas com `codex exec -i public/img/rostos/ia.jpg` (a imagem de referência é o que mantém o personagem igual), pedindo mesmo enquadramento e fundo azul-noite. Uma cara nova entra em `CARAS` (`src/engine/tags.ts`) e em `rostos` (`src/ui/arte.ts`). O roteiro escolhe a expressão com `#cara:<cara>`.
+
+Cada expressão tem também o meio corpo (`public/img/corpos/ia_<cara>.webp`, 640×948, fundo transparente), gerado do mesmo jeito a partir do `corpos/ia.webp` (convertido com `dwebp`) e pedindo PNG com fundo transparente. Depois de gerar, alinhe ao original: recorte pela caixa do alfa, redimensione para 626 px de largura e encaixe num quadro 640×948 com o personagem começando em x=7 e centrado em y=124..810, para o retrato não pular quando a expressão troca. Converta com `cwebp -q 86 -alpha_q 95` e liste em `corpos` no `src/ui/arte.ts`.
+
+| id | expressão |
+| --- | --- |
+| ia_feliz | olhos fechados em arco, sorriso aberto, bochechas mais rosadas, faíscas em volta |
+| ia_sarcastica | olhos semicerrados de lado, sorriso torto de canto, uma sobrancelha erguida |
+| ia_preocupada | olhos grandes e trêmulos olhando para o lado, boca pequena em linha, uma gota de suor, brilho mais fraco |
+| ia_glitch | o mesmo rosto se desfazendo: faixas horizontais deslocadas, aberração cromática rosa/ciano, um olho apagado |
 
 ## Locais (paisagem 3:2, cenário anime sem personagem em primeiro plano) → `public/img/locais/<id>.jpg` (1200×800)
 

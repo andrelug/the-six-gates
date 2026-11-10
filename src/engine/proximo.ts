@@ -22,6 +22,8 @@ export function calcularPasso(s: Estado, cfg: Config, now: number, texto: Texto)
   if (s.banido) return { titulo: texto('texto_passo_bloqueado'), dica: texto('texto_passo_bloqueado_dica'), cta: texto('texto_cta_agir'), alvo: { tipo: 'chat', id: '' } };
 
   const feitas = new Set(s.missoesFeitas);
+  // once the opening arc is over the bar only points the way: no button plays the game for the player
+  const dica = <T extends Passo>(p: T): T => (tutorialFeito(s.missoesFeitas) ? { ...p, semBotao: true } : p);
   const abertas = MISSOES.filter((m) => !m.roteirizada && s.missoesVistas.includes(m.id) && !feitas.has(m.id));
   const ordem = (a: (typeof MISSOES)[number], b: (typeof MISSOES)[number]) => (a.tipo === b.tipo ? a.ordem - b.ordem : a.tipo === 'principal' ? -1 : 1);
   const info = (m: (typeof MISSOES)[number]) => ({ titulo: texto(`missao_${m.id}_titulo`), resumo: texto(`missao_${m.id}_resumo`), ensina: texto(`missao_${m.id}_ensina`) });
@@ -32,16 +34,18 @@ export function calcularPasso(s: Estado, cfg: Config, now: number, texto: Texto)
     const { titulo, resumo, ensina } = info(pronta);
     if (pronta.local && s.localAtual !== pronta.local) {
       const onde = nomeLocal(pronta.local);
-      return { titulo: texto('texto_passo_iniciar', titulo), dica: texto('texto_passo_iniciar_dica', onde), cta: texto('texto_passo_ir', onde), ensina, alvo: { tipo: 'local', id: pronta.local } };
+      return dica({ titulo: texto('texto_passo_iniciar', titulo), dica: texto('texto_passo_iniciar_dica', onde), cta: texto('texto_passo_ir', onde), ensina, alvo: { tipo: 'local', id: pronta.local } });
     }
-    return { titulo: texto('texto_passo_iniciar', titulo), dica: resumo, cta: texto('texto_cta_iniciar'), ensina, alvo: { tipo: 'missao', id: pronta.id } };
+    // with no button to press, a mission that lives in the inbox has to say so
+    const onde = !pronta.local && tutorialFeito(s.missoesFeitas) ? texto('texto_passo_iniciar_dica', '') : resumo;
+    return dica({ titulo: texto('texto_passo_iniciar', titulo), dica: onde, cta: texto('texto_cta_iniciar'), ensina, alvo: { tipo: 'missao', id: pronta.id } });
   }
 
   // 2. a place never visited that hides a mission
   const novo = !tutorialFeito(s.missoesFeitas) ? undefined : MISSOES.filter((m) => m.descobre && m.descobre !== 'mensagem' && !s.visitados.includes(m.descobre) && s.locais.includes(m.descobre) && !feitas.has(m.id)).sort(ordem)[0];
   if (novo?.descobre) {
     const onde = nomeLocal(novo.descobre);
-    return { titulo: texto('texto_passo_explorar', onde), dica: texto('texto_passo_explorar_dica'), cta: texto('texto_passo_ir', onde), alvo: { tipo: 'local', id: novo.descobre } };
+    return dica({ titulo: texto('texto_passo_explorar', onde), dica: texto('texto_passo_explorar_dica'), cta: texto('texto_passo_ir', onde), alvo: { tipo: 'local', id: novo.descobre } });
   }
 
   // 3. a mission blocked by a requirement: tell what to raise and where
@@ -58,7 +62,7 @@ export function calcularPasso(s: Estado, cfg: Config, now: number, texto: Texto)
         return { titulo: texto('texto_passo_energia', precisa), dica: texto('texto_passo_energia_dica', info(m).titulo), cta: '', ensina: info(m).ensina, alvo: { tipo: 'espera', id: '' } };
       }
       if (nv && s.modulos.includes('treino')) {
-        return { titulo: texto('texto_passo_nivel', nv.precisa), dica: texto('texto_passo_nivel_dica', info(m).titulo), cta: texto('texto_cta_agir'), ensina: info(m).ensina, alvo: { tipo: 'acao', id: 'treino' } };
+        return dica({ titulo: texto('texto_passo_nivel', nv.precisa), dica: texto('texto_passo_nivel_dica', info(m).titulo), cta: texto('texto_cta_agir'), ensina: info(m).ensina, alvo: { tipo: 'acao', id: 'treino' } });
       }
       continue;
     }
@@ -66,18 +70,18 @@ export function calcularPasso(s: Estado, cfg: Config, now: number, texto: Texto)
     const como = COMO_SUBIR[gate];
     if (!s.locais.includes(como.local)) continue;
     const alvo = como.acao && s.localAtual === como.local ? ({ tipo: 'acao', id: como.acao } as const) : ({ tipo: 'local', id: como.local } as const);
-    return {
+    return dica({
       titulo: texto('texto_passo_requisito', cfg.portoes[GATE_IDS.indexOf(gate)], ROMANO[falta.precisa]),
       dica: texto('texto_passo_requisito_dica', info(m).titulo),
       cta: alvo.tipo === 'acao' ? texto('texto_cta_agir') : texto('texto_passo_ir', nomeLocal(como.local)),
       ensina: info(m).ensina,
       alvo,
-    };
+    });
   }
 
-  // 4. nothing pending: spend Energia, or wander
+  // 4. nothing pending: how to spend the Energia is the player's call, so this one is never a button
   if (s.modulos.includes('treino') && energiaAgora(s.world, cfg, now) >= cfg.treino.custo) {
-    return { titulo: texto('texto_passo_treinar'), dica: texto('texto_passo_treinar_dica'), cta: texto('texto_cta_agir'), alvo: { tipo: 'acao', id: 'treino' } };
+    return { titulo: texto('texto_passo_treinar'), dica: texto('texto_passo_treinar_dica'), cta: texto('texto_cta_agir'), semBotao: true, alvo: { tipo: 'acao', id: 'treino' } };
   }
-  return { titulo: texto('texto_passo_livre'), dica: texto('texto_passo_livre_dica'), cta: texto('texto_passo_ir', ''), alvo: { tipo: 'local', id: s.localAtual || 'apartamento' } };
+  return { titulo: texto('texto_passo_livre'), dica: texto('texto_passo_livre_dica'), cta: texto('texto_passo_ir', ''), semBotao: true, alvo: { tipo: 'local', id: s.localAtual || 'apartamento' } };
 }

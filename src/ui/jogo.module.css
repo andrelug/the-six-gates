@@ -1,0 +1,76 @@
+/* Things added after the first playtest: the unexplained counter, risky actions, the ban scene, hints and the phone HUD. */
+
+/* ───────── the counter nobody explains ───────── */
+.contador { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 0; padding: 3px 16px 3px 10px; min-width: 0;
+  border-left: 3px solid var(--bad); background: linear-gradient(90deg, rgba(255,84,112,.16), transparent); clip-path: var(--corte); animation: contadorIn .8s steps(5) both; }
+.contador b { font-family: var(--f-ai); font-size: 15px; line-height: 1.1; color: var(--bad); font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+.contador > span:not([aria-hidden]) { font-family: var(--f-ai); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-mute); white-space: nowrap; }
+@keyframes contadorIn { 0% { opacity: 0; } 20% { opacity: 1; } 40% { opacity: .2; } 60% { opacity: 1; } 80% { opacity: .5; } 100% { opacity: 1; } }
+/* after the ban it is the one thing still lit */
+.contadorCongelado { background: linear-gradient(90deg, rgba(255,84,112,.3), transparent); box-shadow: 0 0 18px rgba(255,84,112,.35); }
+.contadorCongelado b { animation: congelado 2.4s ease-in-out infinite; }
+@keyframes congelado { 50% { opacity: .55; } }
+
+.som { display: grid; place-items: center; width: 34px; height: 34px; border: 0; padding: 0; cursor: pointer; color: var(--text-mute); background: var(--surface-2); clip-path: var(--corte2); transition: color .2s, filter .2s; }
+.som:hover { color: #fff; filter: brightness(1.3); }
+.som[aria-pressed='true'] { color: var(--ciano); }
+
+/* ───────── the ban: everything she installed switches off, newest first ───────── */
+:global([data-morto]) { filter: grayscale(1) brightness(.35) !important; opacity: .25 !important; transition: filter .12s steps(2), opacity .12s steps(2) !important; animation: morre .22s steps(3) 1 !important; }
+@keyframes morre { 0% { transform: translateX(-3px); filter: invert(1); } 50% { transform: translateX(3px) skewX(8deg); opacity: 1; } 100% { transform: none; } }
+
+.ban { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 24px; background: #020309; color: #fff; cursor: pointer; animation: banIn .5s steps(4) both; overflow: hidden; }
+.ban::before { content: ''; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(255,84,112,.05) 0 1px, transparent 1px 4px); animation: banScan 6s linear infinite; }
+.ban::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(60vw 50vh at 50% 45%, rgba(255,61,139,.12), transparent 70%); }
+@keyframes banIn { 0% { opacity: 0; } 30% { opacity: 1; filter: invert(1); } 60% { filter: none; opacity: .6; } 100% { opacity: 1; } }
+@keyframes banScan { to { background-position-y: 80px; } }
+.banCaixa { position: relative; z-index: 1; width: min(680px, 100%); display: flex; flex-direction: column; gap: 22px; }
+.banSelo { align-self: flex-start; font-family: var(--f-tit); font-style: italic; font-weight: 800; font-size: 15px; letter-spacing: .14em; text-transform: uppercase; color: #020309; background: var(--bad); padding: 3px 22px 3px 12px; clip-path: var(--corte); animation: banLinha .5s .2s both; }
+.banTitulo { font-family: var(--f-tit); font-style: italic; font-weight: 800; font-size: clamp(30px, 6vw, 58px); line-height: 1; margin: 0; text-transform: uppercase; animation: banLinha .6s .6s both; }
+.banCorte { font-family: var(--f-ai); font-size: clamp(15px, 2.4vw, 20px); color: var(--ciano); padding: 12px 14px; border-left: 3px solid var(--ciano); background: rgba(45,226,230,.07); animation: banLinha .6s 1.5s both; }
+.banCorte::after { content: '▌'; margin-left: 1px; animation: banCursor .9s 2.1s steps(1) 4 both; }
+@keyframes banCursor { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 0; } }
+.banNumeros { display: flex; flex-wrap: wrap; gap: 10px 28px; font-family: var(--f-ai); font-size: 13px; letter-spacing: .05em; text-transform: uppercase; color: var(--text-mute); animation: banLinha .6s 2.6s both; }
+.banNumeros b { color: var(--bad); font-size: 22px; margin-right: 8px; font-variant-numeric: tabular-nums; }
+.banPilares { display: flex; gap: 10px; align-items: center; }
+.banPilares i { width: 14px; height: 14px; transform: rotate(45deg); border: 2px solid var(--dead); animation: banCai .5s both; animation-delay: calc(2.8s + var(--i) * 110ms); }
+@keyframes banCai { 0% { background: var(--amarelo); border-color: var(--amarelo); box-shadow: 0 0 12px var(--amarelo); } 100% { background: transparent; border-color: var(--dead); box-shadow: none; transform: rotate(45deg) translate(3px, 3px); } }
+.banPular { font-family: var(--f-ai); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-mute); animation: banLinha .6s 4s both, congelado 1.8s 4.6s ease-in-out infinite; }
+@keyframes banLinha { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* ───────── the hint bar (after the opening arc nothing plays the game for you) ───────── */
+.passoDica { background: linear-gradient(90deg, rgba(155,107,255,.16), rgba(11,15,46,.94) 40%) !important; box-shadow: inset 4px 0 0 var(--violeta), inset 0 0 0 1.5px rgba(155,107,255,.35), 0 10px 40px rgba(0,0,0,.4) !important; }
+.passoDica > span:first-child { animation: none; opacity: .8; }
+
+/* ───────── actions with a safe and a risky version ───────── */
+.acaoDupla { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.acaoDupla > button:first-child { flex: 1; }
+.arriscado { --c: var(--bad); position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; width: 100%; padding: 7px 26px 7px 12px; border: 0; cursor: pointer; text-align: left; color: #fff;
+  background: linear-gradient(90deg, rgba(255,84,112,.28), rgba(8,11,32,.9) 70%); box-shadow: inset 3px 0 0 var(--bad); clip-path: var(--corte); transition: transform .15s, filter .15s; animation: arriscadoIn .5s cubic-bezier(.2,.9,.3,1.3) both; }
+.arriscado:hover:not(:disabled) { transform: translateX(3px); filter: brightness(1.2); }
+.arriscado:disabled { opacity: .45; cursor: default; filter: grayscale(.8); }
+.arriscado b { flex: 1; font-family: var(--f-tit); font-style: italic; font-weight: 800; font-size: 18px; line-height: 1; white-space: nowrap; }
+.arriscado small { order: 3; flex-basis: 100%; font-size: 11.5px; color: rgba(255,255,255,.8); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.arriscado em { font-style: normal; font-family: var(--f-tit); font-weight: 800; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--tinta); background: var(--bad); padding: 0 8px; clip-path: var(--corte2); white-space: nowrap; }
+@keyframes arriscadoIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+.arriscado:focus-visible { outline: 3px solid #fff; outline-offset: -3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ban, .ban *, .contador, :global([data-morto]) { animation: none !important; }
+}
+
+/* ───────── phone: the HUD is one slim strip, the page starts right under it ───────── */
+@media (max-width: 860px) {
+  .contador { order: 1; padding: 1px 12px 1px 6px; }
+  .contador b { font-size: 12px; }
+  .contador > span:not([aria-hidden]) { display: none; }
+  .som { width: 26px; height: 26px; }
+}
+
+/* the bubble of a guide who is not there */
+.fabMudo img { filter: grayscale(1) brightness(.65); }
+
+/* a hint has no button, so on a phone its one line of text is all it has: keep it */
+@media (max-width: 860px) {
+  .dicaVisivel { display: block !important; font-size: 12.5px; line-height: 1.3; color: var(--text-mute); }
+}

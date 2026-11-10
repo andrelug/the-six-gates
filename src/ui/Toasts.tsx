@@ -4,7 +4,7 @@ import { useEstado } from './contexto';
 import { Icone, type NomeIcone } from './icones';
 import s from './ui.module.css';
 
-const ICONE: Record<string, NomeIcone> = { portao: 'porta', tarefa: 'check', local: 'pino', mensagem: 'envelope', missao: 'alvo', mecanica: 'lampada', nivel: 'estrela' };
+const ICONE: Record<string, NomeIcone> = { portao: 'porta', tarefa: 'check', local: 'pino', mensagem: 'envelope', missao: 'alvo', mecanica: 'lampada', nivel: 'estrela', semana: 'moeda' };
 
 export default function Toasts() {
   const toasts = useEstado((e) => e.toasts);

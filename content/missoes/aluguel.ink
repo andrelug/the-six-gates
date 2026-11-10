@@ -33,6 +33,11 @@ DAVI: Olha, eu tenho umas fotos do Heitor. Ele pelado, num churrasco. Não é bo
         HEITOR: Pras duas? Eu ia morrer de vergonha. Mas você tem razão: é o único jeito que não acaba em tragédia.
     * * [Escolher a que faz ele rir mais]
         HEITOR: A Marta. Claro que é a Marta. Eu só estava com medo de dizer isso em voz alta.
+    * * {habilidade == "culinária"} [Cozinhar o jantar e deixar os três à mesa]
+        NARR: Você assume a cozinha do Heitor com o que aprendeu no curso. Risoto pra três, vinho, e a porta fechada por fora.
+        HEITOR: Elas riram. Uma da outra, depois de mim, depois comigo. Eu não entendi nada e nunca fui tão feliz.
+        ~ dar("reputacao", 1)
+        NOTA: +1 reputação · o jantar virou assunto no prédio
     - HEITOR: Resolvido. O Davi tem até o fim do mês. E eu devo uma a você.
     ~ dar("reputacao", 1)
     NOTA: +1 reputação #mostrar:reputacao

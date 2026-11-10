@@ -8,6 +8,8 @@ import { Icone, IconeArte, type NomeIcone } from './icones';
 import { LOCAIS } from './locais';
 import { R } from './rotulos';
 import { CountUp, Delta } from './util';
+import j from './jogo.module.css';
+import { BotaoSom } from './Som';
 import s from './ui.module.css';
 
 /** One HUD block: a painted icon in its own colour, then the number. */
@@ -30,6 +32,7 @@ export default function Topbar() {
   const locais = useEstado((e) => e.locaisView);
   const atual = useEstado((e) => e.localAtual);
   const portoesOculto = useOculto('portoes');
+  const contadorOculto = useOculto('contador');
   const perfil = useEstado((e) => e.perfil);
   const nome = perfil.nome;
   const voando = useEstado((e) => e.nomeVoando);
@@ -47,6 +50,7 @@ export default function Topbar() {
     <header className={s.top}>
       <div className={s.topIn}>
         <span className={s.brand}>{R.marca}</span>
+        <BotaoSom className={j.som} />
         {nome && (
           <div className={s.jogador}>
             <span className={s.jogadorAvatar}>{nome.trim().charAt(0)}</span>
@@ -131,6 +135,13 @@ export default function Topbar() {
             </Stat>
           )}
         </div>
+        {tem('contador') && (
+          <div className={`${j.contador} ${banido ? j.contadorCongelado : ''}`} data-foco="contador" {...contadorOculto} title={R.contador}>
+            <b><CountUp valor={world.autonomas} /></b>
+            <span>{R.contador}</span>
+            <Delta valor={world.autonomas} />
+          </div>
+        )}
         {aqui && (
           <span className={s.aqui} title={R.aqui} style={{ ['--h' as string]: LOCAIS[aqui.id]?.h ?? 220 } as CSSProperties}>
             <Icone nome={LOCAIS[aqui.id]?.ico ?? 'pino'} tam={15} /> <b key={aqui.id}>{aqui.nome}</b>

@@ -10,6 +10,7 @@ import { srcAcao } from '../arte';
 import { Icone, IconeArte, type NomeIcone } from '../icones';
 import { LOCAIS } from '../locais';
 import { R } from '../rotulos';
+import j from '../jogo.module.css';
 import s from '../ui.module.css';
 
 export const inicial = (nome: string) => nome.trim().charAt(0) || '?';
@@ -40,7 +41,17 @@ export function CartaoAcao({ id }: { id: AcaoId }) {
   const pendente = useEstado((e) => e.pendente);
   const emprego = useEstado((e) => e.perfil.emprego);
   const abertas = useEstado((e) => e.tarefas.length > 0);
+  const feitas = useEstado((e) => e.missoesFeitas);
   const curso = world.curso;
+  // the risky version shows up once it is earned (same rule as Game.arriscadoAberto)
+  const pesado = config.treino.pesado;
+  const semNota = config.bico.arriscado;
+  const risco =
+    id === 'treino' && feitas.includes('vaga') && rank(world, 'corpo', config) >= 2
+      ? { nome: R.pesado, custo: pesado.custo, ganho: `+${pesado.saude} ${R.saude.toLowerCase()}`, pct: pesado.risco }
+      : id === 'trabalho' && feitas.includes('bico')
+        ? { nome: R.arriscado, custo: config.bico.custo, ganho: `+${semNota.creditos} cr`, pct: semNota.risco }
+        : null;
   const pronto = valor(world, 'curso_pronto', config, agora) > 0;
   const sub: Record<AcaoId, string> = {
     treino: `${R.academia} · +${config.treino.saude} ${R.saude.toLowerCase()}`,
@@ -51,6 +62,7 @@ export function CartaoAcao({ id }: { id: AcaoId }) {
   const chamar = pendente?.tipo === 'aguardar' && pendente.id === id;
   const arte = srcAcao(id);
   return (
+    <div className={j.acaoDupla}>
     <button
       type="button"
       data-foco={id}
@@ -66,6 +78,31 @@ export function CartaoAcao({ id }: { id: AcaoId }) {
         <span>{sub[id]}</span>
       </div>
       {custo > 0 && <span className={s.custo}>−{custo} <Icone nome="raio" tam={12} /></span>}
+    </button>
+    {risco && (
+      <button type="button" className={j.arriscado} disabled={banido} onClick={() => game.acao(id, true)}>
+        <b>{risco.nome}</b>
+        <small>−{risco.custo} <Icone nome="raio" tam={11} /> · {risco.ganho}</small>
+        <em>{risco.pct}% {R.risco}</em>
+      </button>
+    )}
+    </div>
+  );
+}
+
+/** The mall kiosk: credits become Energia on the spot. The one place money buys time. */
+export function CartaoEnergetico() {
+  const { game } = useJogo();
+  const banido = useEstado((e) => e.banido);
+  const { preco, energia } = config.energetico;
+  return (
+    <button type="button" className={s.acaoCard} style={{ ['--c' as string]: 'var(--amarelo)' } as CSSProperties} disabled={banido} onClick={() => game.comprarEnergetico()}>
+      <span className={s.acaoIco}><IconeArte arte="energia" nome="raio" tam={30} /></span>
+      <div className={s.acaoTxt}>
+        <b>{R.energetico}</b>
+        <span>{R.energeticoSub} · +{energia} {R.energia.toLowerCase()}</span>
+      </div>
+      <span className={s.custo}>−{preco} cr</span>
     </button>
   );
 }

@@ -1,4 +1,4 @@
-/* The map is always a dusk scene: fixed dark palette, independent of the app theme. */
+/* The map is always a neon night scene: fixed dark palette, independent of the app theme. */
 .raiz {
   position: relative;
   width: 100%;
@@ -9,9 +9,10 @@
   isolation: isolate;
   container-type: inline-size;
   background:
-    radial-gradient(60% 55% at 50% 40%, rgba(77, 107, 255, 0.22), transparent 70%),
-    radial-gradient(120% 90% at 50% 100%, rgba(255, 140, 90, 0.12), transparent 60%),
-    linear-gradient(180deg, #151d3f 0%, #0b1022 100%);
+    radial-gradient(55% 55% at 18% 30%, rgba(255, 61, 139, 0.16), transparent 70%),
+    radial-gradient(55% 55% at 84% 34%, rgba(45, 226, 230, 0.13), transparent 70%),
+    radial-gradient(120% 90% at 50% 100%, rgba(155, 107, 255, 0.14), transparent 60%),
+    linear-gradient(180deg, #10163a 0%, #070a1c 100%);
 }
 @media (max-width: 700px) {
   .raiz { height: 360px; }

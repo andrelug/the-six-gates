@@ -19,9 +19,15 @@ export interface World {
   curso: { nome: string; fim: number; contado?: boolean } | null;
   /** When the ban fires (armed by the script or by finishing all tasks). */
   banAt: number | null;
+  /** Things the AI did without asking. Only the script moves it; the HUD shows it without ever explaining it. */
+  autonomas: number;
+  /** Ms per Energia step once the opening arc is over (null = the fast prologue pace in config.energia.regenMs). */
+  regenMs: number | null;
+  /** When the next week closes (salary in, bills out); null until the opening arc is over. */
+  cicloEm: number | null;
 }
 
-export const CHAVES_ESCRITA = ['creditos', 'saude', 'reputacao', 'renda', 'gasto', 'tesouro', 'amigos', 'energia', 'xp'] as const;
+export const CHAVES_ESCRITA = ['creditos', 'saude', 'reputacao', 'renda', 'gasto', 'tesouro', 'amigos', 'energia', 'xp', 'autonomas'] as const;
 export type ChaveEscrita = (typeof CHAVES_ESCRITA)[number];
 export const CHAVES_LEITURA = [...CHAVES_ESCRITA, 'habilidades', 'curso_pronto', 'curso_pct', 'nivel'] as const;
 export type ChaveLeitura = (typeof CHAVES_LEITURA)[number];
@@ -32,29 +38,30 @@ export interface Efeito {
 }
 
 export function criarMundo(cfg: Config, now: number): World {
-  return { ...cfg.mundoInicial, tesouro: 0, xp: 0, habilidades: 0, amigos: 0, energia: cfg.energia.max, energiaEm: now, curso: null, banAt: null };
+  return { ...cfg.mundoInicial, tesouro: 0, xp: 0, habilidades: 0, amigos: 0, energia: cfg.energia.max, energiaEm: now, curso: null, banAt: null, regenMs: null, cicloEm: null };
 }
 
 const limitar = (n: number, min: number, max: number) => Math.min(max, Math.max(min, n));
+const passoMs = (w: World, cfg: Config) => w.regenMs ?? cfg.energia.regenMs;
 
 /** Energy regenerates in steps of `regen` every `regenMs`; computed on read so it survives reloads. */
 export function energiaAgora(w: World, cfg: Config, now: number): number {
-  const passos = Math.max(0, Math.floor((now - w.energiaEm) / cfg.energia.regenMs));
+  const passos = Math.max(0, Math.floor((now - w.energiaEm) / passoMs(w, cfg)));
   return Math.min(cfg.energia.max, w.energia + passos * cfg.energia.regen);
 }
 
 /** Ms until the next energy step, 0 when full. */
 export function proximaEnergiaEm(w: World, cfg: Config, now: number): number {
   if (energiaAgora(w, cfg, now) >= cfg.energia.max) return 0;
-  return cfg.energia.regenMs - ((now - w.energiaEm) % cfg.energia.regenMs);
+  return passoMs(w, cfg) - ((now - w.energiaEm) % passoMs(w, cfg));
 }
 
 function fixarEnergia(w: World, cfg: Config, now: number, nova: number): World {
   const atual = energiaAgora(w, cfg, now);
   const cheia = nova >= cfg.energia.max;
   // keep the partial regen step unless the meter just hit the cap
-  const passos = Math.floor((now - w.energiaEm) / cfg.energia.regenMs);
-  const marca = cheia || atual >= cfg.energia.max ? now : w.energiaEm + passos * cfg.energia.regenMs;
+  const passos = Math.floor((now - w.energiaEm) / passoMs(w, cfg));
+  const marca = cheia || atual >= cfg.energia.max ? now : w.energiaEm + passos * passoMs(w, cfg);
   return { ...w, energia: limitar(nova, 0, cfg.energia.max), energiaEm: marca };
 }
 
@@ -80,6 +87,7 @@ export function valor(w: World, chave: string, cfg: Config, now: number): number
     case 'habilidades':
     case 'amigos':
     case 'xp':
+    case 'autonomas':
       return w[chave];
     default:
       throw new Error(`valor(): unknown world key "${chave}"`);
@@ -100,6 +108,7 @@ export function aplicar(w: World, e: Efeito, cfg: Config, now: number): World {
     case 'tesouro':
     case 'amigos':
     case 'xp':
+    case 'autonomas':
       return { ...w, [e.chave]: w[e.chave] + e.quanto };
     default:
       throw new Error(`dar(): unknown world key "${e.chave}"`);
@@ -125,4 +134,20 @@ export function nivel(w: World, cfg: Config): number {
 export function progressoNivel(w: World, cfg: Config) {
   const n = nivel(w, cfg);
   return { nivel: n, xp: w.xp, base: cfg.niveis[n - 1], proximo: n < cfg.niveis.length ? cfg.niveis[n] : null };
+}
+
+/** The opening arc is over: Energia refills at the slow everyday pace and the weeks start closing. */
+export function ritmoLivre(w: World, cfg: Config, now: number): World {
+  const banco = fixarEnergia(w, cfg, now, energiaAgora(w, cfg, now)); // bank what the fast pace already gave
+  return { ...banco, energiaEm: now, regenMs: cfg.energia.regenLivreMs, cicloEm: now + cfg.ciclo.ms };
+}
+
+/** Closes every week that is due (at most cfg.ciclo.max after a long absence): a quarter of the monthly income in, a quarter of the bills out. */
+export function fecharSemanas(w: World, cfg: Config, now: number): { world: World; semanas: number; salario: number; contas: number } {
+  if (w.cicloEm === null || now < w.cicloEm) return { world: w, semanas: 0, salario: 0, contas: 0 };
+  const devidas = 1 + Math.floor((now - w.cicloEm) / cfg.ciclo.ms);
+  const semanas = Math.min(devidas, cfg.ciclo.max);
+  const salario = Math.round(w.renda / 4) * semanas;
+  const contas = Math.round(w.gasto / 4) * semanas;
+  return { world: { ...w, creditos: w.creditos + salario - contas, cicloEm: w.cicloEm + devidas * cfg.ciclo.ms }, semanas, salario, contas };
 }

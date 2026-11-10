@@ -11,6 +11,10 @@ export interface Contexto {
   bicoAberto: boolean;
   /** True while the script waits for this very action, so the AI stays quiet. */
   esperada: boolean;
+  /** The risky version of the action (heavy set, off-the-books delivery). */
+  arriscado?: boolean;
+  /** Draws 1..n. It comes from Ink's RANDOM, so the seed lives in the save. */
+  sorteio: (n: number) => number;
   /** Text from an Ink function (never from code). */
   texto: (fn: string, ...args: (string | number)[]) => string;
 }
@@ -23,6 +27,13 @@ export interface Resultado {
   fala?: string;
   /** What changed in the world, for the result card. */
   efeitos?: { chave: string; quanto: number }[];
+  /** The risky version went wrong. */
+  falhou?: boolean;
+}
+
+/** Applies each effect in order and keeps the list for the result card. */
+function aplicarTodos(c: Contexto, w: World, efeitos: { chave: string; quanto: number }[]): World {
+  return efeitos.reduce((m, e) => aplicar(m, e, c.cfg, c.now), w);
 }
 
 function gastar(c: Contexto, custo: number): World | null {
@@ -30,7 +41,29 @@ function gastar(c: Contexto, custo: number): World | null {
   return aplicar(c.world, { chave: 'energia', quanto: -custo }, c.cfg, c.now);
 }
 
+/** Heavy set: twice the Energia for more than twice the health, unless the body gives in. */
+function treinoPesado(c: Contexto): Resultado {
+  const { custo, saude, xp, risco, lesao } = c.cfg.treino.pesado;
+  const w = gastar(c, custo);
+  if (!w) return { world: c.world, ok: false, fala: c.texto('texto_sem_energia') };
+  const falhou = c.sorteio(100) <= risco;
+  const ganhos = falhou ? [{ chave: 'saude', quanto: -lesao }] : [{ chave: 'saude', quanto: saude }, { chave: 'xp', quanto: xp }];
+  return { world: aplicarTodos(c, w, ganhos), ok: true, falhou, efeitos: [{ chave: 'energia', quanto: -custo }, ...ganhos], fala: c.texto(falhou ? 'texto_lesao' : 'texto_treino_pesado') };
+}
+
+/** Off-the-books delivery: pays far more, unless you get caught (no pay, and the city hears about it). */
+function bicoArriscado(c: Contexto): Resultado {
+  const { custo } = c.cfg.bico;
+  const { creditos, xp, risco, reputacao } = c.cfg.bico.arriscado;
+  const w = gastar(c, custo);
+  if (!w) return { world: c.world, ok: false, fala: c.texto('texto_sem_energia') };
+  const falhou = c.sorteio(100) <= risco;
+  const ganhos = falhou ? [{ chave: 'reputacao', quanto: -reputacao }] : [{ chave: 'creditos', quanto: creditos }, { chave: 'xp', quanto: xp }];
+  return { world: aplicarTodos(c, w, ganhos), ok: true, falhou, efeitos: [{ chave: 'energia', quanto: -custo }, ...ganhos], fala: c.texto(falhou ? 'texto_bico_pego' : 'texto_bico_arriscado') };
+}
+
 function treino(c: Contexto): Resultado {
+  if (c.arriscado) return treinoPesado(c);
   const { custo, saude, xp } = c.cfg.treino;
   const w = gastar(c, custo);
   if (!w) return { world: c.world, ok: false, fala: c.texto('texto_sem_energia') };
@@ -45,6 +78,7 @@ function treino(c: Contexto): Resultado {
 
 function trabalho(c: Contexto): Resultado {
   if (!c.bicoAberto) return { world: c.world, ok: false, fala: c.texto('texto_bico_cedo') };
+  if (c.arriscado) return bicoArriscado(c);
   const { custo, creditos, xp } = c.cfg.bico;
   const w = gastar(c, custo);
   if (!w) return { world: c.world, ok: false, fala: c.texto('texto_sem_energia') };

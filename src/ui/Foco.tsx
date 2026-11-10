@@ -68,7 +68,7 @@ export default function Foco() {
           if (!vivo.current) break;
           continue;
         }
-        const alvoEl = el;
+        let alvoEl = el;
         alvoEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         // on a phone the chat covers most of the screen: slide it away while the thing behind it is shown
         const b = alvoEl.getBoundingClientRect();
@@ -79,8 +79,11 @@ export default function Foco() {
         primeiro = false;
         const seguir = () => {
           if (!vivo.current) return;
+          // the thing may have been remounted since (the next-step bar is keyed by its title, pages swap): follow the live node,
+          // or the beam would jump to the corner of the screen
+          if (!alvoEl.isConnected) alvoEl = visivel(document.querySelector<HTMLElement>(`[data-foco="${chave}"]`)) ?? alvoEl;
           const b = alvoEl.getBoundingClientRect();
-          setAlvo({ chave, x: b.left, y: b.top, w: b.width, h: b.height, vai: vai && performance.now() - chegou < 600 });
+          if (b.width > 0) setAlvo({ chave, x: b.left, y: b.top, w: b.width, h: b.height, vai: vai && performance.now() - chegou < 600 });
           raf.current = requestAnimationFrame(seguir);
         };
         seguir();

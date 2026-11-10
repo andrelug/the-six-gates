@@ -8,9 +8,9 @@ import type { Config } from './config';
 import { cenaDe, criarHistoria, versaoDoRoteiro } from './story';
 import { LIMITE_LINHAS, type Estado, type Evento, type GameStore, type Linha, type Opcao, type Pendente, type TipoLinha, type Toast } from './store';
 import { parseLinha, parseTags, type AcaoId, type Tag } from './tags';
-import { missaoPorId, MISSOES, requisitos, tutorialFeito } from './missoes';
+import { missaoPorId, MISSOES, rank, requisitos, tutorialFeito } from './missoes';
 import { calcularPasso } from './proximo';
-import { aplicar, contarCurso, energiaAgora, iniciarCurso, nivel, valor } from './world';
+import { aplicar, contarCurso, energiaAgora, fecharSemanas, iniciarCurso, nivel, ritmoLivre, valor } from './world';
 
 export const SAVE_KEY = 'sixgates:save:v1';
 
@@ -41,6 +41,9 @@ const PAUSA = { ia: 120, npc: 120, narr: 120, rec: 120, news: 0, fim: 0 } as con
 const FOCO_MS = 2800;
 /** No wait in the script may stall the player longer than this. */
 const ESPERA_MAX = 1500;
+/** The ban, staged: how long each thing takes to switch off, and how long the decree holds the screen (a tap skips it). */
+const BAN_APAGA_MS = 130;
+const BAN_CENA_MS = 5200;
 
 function deferred<T = void>() {
   let resolve!: (v: T) => void;
@@ -105,6 +108,7 @@ export class Game {
       textos: {
         missoes: Object.fromEntries(MISSOES.map((m) => [m.id, { titulo: this.fn(`missao_${m.id}_titulo`), resumo: this.fn(`missao_${m.id}_resumo`), ensina: this.fn(`missao_${m.id}_ensina`) }])),
         cursos: Object.fromEntries(this.cfg.cursos.map((c) => [c.id, this.fn(`curso_${c.id}_nome`)])),
+        ban: { titulo: this.fn('texto_ban_titulo'), linha: this.fn('texto_ban_linha'), corte: this.fn('texto_ban_corte'), contador: this.fn('texto_ban_contador'), pilares: this.fn('texto_ban_pilares'), pular: this.fn('texto_ban_pular') },
       },
     });
     this.deps.track?.('sessao_inicio');
@@ -151,14 +155,9 @@ export class Game {
       this.inputPendente.resolve(texto);
       return;
     }
-    if (s.banido) {
+    if (s.banido || s.perfil.semGuia) {
       this.eu(texto);
-      this.sis(this.fn('texto_nao_entregue'), 'nota');
-      return;
-    }
-    if (s.perfil.lado === 'sozinho') {
-      this.eu(texto);
-      this.sis(this.fn('texto_sem_guia'), 'nota');
+      this.sis(this.fn(s.perfil.lado === 'sozinho' ? 'texto_sem_guia' : 'texto_nao_entregue'), 'nota');
       return;
     }
     const opcoes = s.pendente?.tipo === 'escolhas' ? s.pendente.opcoes : null;
@@ -186,7 +185,7 @@ export class Game {
         this.escolher(r.escolha, false);
       } else {
         const fala = r.motivo === 'limite' ? this.fn('texto_ia_ocupada') : r.resposta || this.fn(opcoes ? 'texto_ia_enrolando' : 'texto_ia_livre');
-        await this.digitarLinha('ia', 'IA', fala, 100);
+        await this.digitarLinha('ia', this.get().perfil.guia || 'IA', fala, 100);
       }
     } finally {
       this.respondendo = false;
@@ -194,32 +193,70 @@ export class Game {
     }
   }
 
-  /** Tap on a panel action (Treino, Trabalho, Educação). */
-  acao(id: string): void {
+  /** The risky version of an action opens once the player has earned it: Corpo II for the heavy set, the first job done for the off-the-books delivery. */
+  arriscadoAberto(id: string): boolean {
+    const s = this.get();
+    if (id === 'treino') return rank(s.world, 'corpo', this.cfg) >= 2 && s.missoesFeitas.includes('vaga');
+    if (id === 'trabalho') return s.missoesFeitas.includes('bico');
+    return false;
+  }
+
+  /** Tap on a panel action (Treino, Trabalho, Educação). `arriscado` picks the risky version. */
+  acao(id: string, arriscado = false): void {
     if (id.startsWith('ir_')) return this.viajar(id.slice(3));
     if (!(id in ACOES)) return;
     const s = this.get();
-    if (s.banido) return;
-    const aguardada = s.pendente?.tipo === 'aguardar' && s.pendente.id === id ? s.pendente : null;
+    if (s.banido || (arriscado && !this.arriscadoAberto(id))) return;
+    const aguardada = !arriscado && s.pendente?.tipo === 'aguardar' && s.pendente.id === id ? s.pendente : null;
     const r = ACOES[id as AcaoId]({
       world: s.world,
       cfg: this.cfg,
       now: this.relogio.now(),
       bicoAberto: Boolean(this.story.variablesState['bico_aberto']),
       esperada: Boolean(aguardada),
+      arriscado,
+      sorteio: (n) => Number(this.story.EvaluateFunction('sorteio', [n])),
       texto: (f, ...a) => this.fn(f, ...a),
     });
     this.set({ world: r.world });
     if (aguardada && r.ok) this.sis('→ ' + aguardada.label, 'nota');
     if (r.ok) {
-      const ev: Evento = { id: id as AcaoId, efeitos: r.efeitos ?? [] };
-      this.novaLinha({ tipo: 'acao', texto: this.fn(`acao_titulo_${id}`), ev });
+      const ev: Evento = { id: id as AcaoId, efeitos: r.efeitos ?? [], falhou: r.falhou };
+      this.novaLinha({ tipo: 'acao', texto: this.fn(`acao_titulo_${id}${arriscado ? (r.falhou ? '_falhou' : '_arriscado') : ''}`), ev });
       this.animar(ev);
     } else if (r.sistema) this.sis(r.sistema, 'nota');
     if (aguardada && r.ok) this.acaoPendente.resolve();
-    else if (r.fala && this.ocioso) void this.digitarLinha('ia', 'IA', r.fala, 450);
+    else if (r.fala && this.ocioso) this.comentar(r.fala);
     this.refrescar();
     if (this.ocioso) this.salvar();
+  }
+
+  /** The guide's quip after something the player did. With nobody on the line it is a plain note. */
+  private comentar(fala: string): void {
+    if (this.get().perfil.semGuia) this.sis(fala, 'nota');
+    else void this.digitarLinha('ia', this.get().perfil.guia || 'IA', fala, 450);
+  }
+
+  /** Buys an energy drink at the mall: credits become Energia right now. Open once the opening arc is over. */
+  comprarEnergetico(): boolean {
+    const s = this.get();
+    const now = this.relogio.now();
+    const { preco, energia } = this.cfg.energetico;
+    if (s.banido || !tutorialFeito(s.missoesFeitas) || s.localAtual !== 'shopping') return false;
+    if (s.world.creditos < preco || energiaAgora(s.world, this.cfg, now) >= this.cfg.energia.max) {
+      if (this.ocioso) this.comentar(this.fn(s.world.creditos < preco ? 'texto_sem_credito' : 'texto_energia_cheia'));
+      return false;
+    }
+    const antes = energiaAgora(s.world, this.cfg, now);
+    let world = aplicar(s.world, { chave: 'creditos', quanto: -preco }, this.cfg, now);
+    world = aplicar(world, { chave: 'energia', quanto: energia }, this.cfg, now);
+    this.set({ world });
+    const ev: Evento = { id: 'energetico', efeitos: [{ chave: 'creditos', quanto: -preco }, { chave: 'energia', quanto: energiaAgora(world, this.cfg, now) - antes }] };
+    this.novaLinha({ tipo: 'acao', texto: this.fn('acao_titulo_energetico'), ev });
+    this.animar(ev);
+    this.refrescar();
+    if (this.ocioso) this.salvar();
+    return true;
   }
 
   /** Tap on a place in the city. Releases a #aguardar:ir_<place> when it is the one the story waits for. */
@@ -295,7 +332,6 @@ export class Game {
     }
     this.silenciado = false;
     this.set({ missaoAtiva: id, livre: false, chatAberto: true });
-    this.toast('mecanica', this.fn('texto_mecanica', this.fn(`missao_${id}_ensina`)));
     this.acordar.resolve();
     return null;
   }
@@ -387,12 +423,13 @@ export class Game {
 
   private async mostrar(l: { quem: string; texto: string }, tags: Tag[]): Promise<void> {
     const titulo = tags.find((t) => t.nome === 'titulo')?.texto;
+    const cara = tags.find((t) => t.nome === 'cara')?.cara;
     switch (l.quem) {
       case 'VOCÊ':
         return this.dizer(l.texto);
       case 'IA':
         if (this.get().banido) return;
-        return this.digitarLinha('ia', 'IA', l.texto, PAUSA.ia);
+        return this.digitarLinha('ia', this.fn('guia_nome') || 'IA', l.texto, PAUSA.ia, undefined, cara);
       case 'NARR':
         return this.digitarLinha('narr', '', l.texto, PAUSA.narr);
       case 'NEWS':
@@ -406,7 +443,7 @@ export class Game {
       case 'NOTA':
         return this.sis(l.texto, 'nota');
       default:
-        return this.digitarLinha('npc', l.quem, l.texto, PAUSA.npc);
+        return this.digitarLinha('npc', l.quem, l.texto, PAUSA.npc, undefined, cara);
     }
   }
 
@@ -488,7 +525,9 @@ export class Game {
         }
         case 'evento':
           if (t.evento === 'banimento') await this.executarBanimento();
-          else this.set({ banido: false, portoes: this.get().portoesAntes });
+          // "simple mode": the console works again, but the pillars stay down and nobody guides
+          else if (t.evento === 'simples') this.set({ banido: false, dica: '' });
+          else this.set({ banido: false, dica: '', portoes: this.get().portoesAntes, world: ritmoLivre(this.get().world, this.cfg, this.relogio.now()) });
           break;
         case 'input':
           if ((await this.esperarInput(t.variavel, t.numero, resto)) === INT) return;
@@ -497,6 +536,7 @@ export class Game {
           if ((await this.esperarAcao(t.id, t.label, resto)) === INT) return;
           break;
         case 'titulo':
+        case 'cara':
         case 'acao':
           break;
       }
@@ -536,7 +576,7 @@ export class Game {
       if (r === INT) return INT;
       if (numero && !/^\d{1,3}$/.test(r)) {
         this.eu(r);
-        await this.digitarLinha('ia', 'IA', this.fn('texto_numero_invalido'), PAUSA.ia);
+        await this.digitarLinha('ia', this.get().perfil.guia || 'IA', this.fn('texto_numero_invalido'), PAUSA.ia);
         continue;
       }
       const id = this.eu(r);
@@ -554,6 +594,7 @@ export class Game {
     this.ocioso = true;
     // the story waits for something in the world: get the chat out of the way
     this.set({ pendente: { tipo: 'aguardar', id, label, resto }, chatAberto: false });
+    this.atualizarPasso();
     this.salvar();
     const r = await this.interrompivel(this.acaoPendente.promise);
     if (r === INT) return INT;
@@ -585,10 +626,20 @@ export class Game {
   }
 
   private async executarBanimento(): Promise<void> {
-    this.set({ banido: true, glitch: true, pendente: null, portoesAntes: this.get().portoes, composer: { valor: '', bloqueado: false } });
+    const s = this.get();
+    this.silenciado = false; // what comes next must be read, even by a player who had minimized the chat
+    this.set({ banido: true, glitch: true, pendente: null, passo: null, portoesAntes: s.portoes, composer: { valor: '', bloqueado: false }, chatAberto: false });
     this.deps.track?.('banimento_visto');
-    await this.relogio.sleep(1300);
-    this.set({ glitch: false, portoes: [] });
+    await this.relogio.sleep(700);
+    // everything the AI installed switches off, newest first; only her counter stays lit
+    for (const m of [...s.modulos].reverse()) {
+      if (m === 'contador') continue;
+      this.set({ morrendo: [...this.get().morrendo, m] });
+      await this.relogio.sleep(BAN_APAGA_MS);
+    }
+    this.set({ glitch: false, portoes: [], banCena: true });
+    await this.pausaLeitura(BAN_CENA_MS);
+    this.set({ banCena: false, morrendo: [] });
   }
 
   // ---------- periodic work ----------
@@ -604,9 +655,22 @@ export class Game {
       this.toast('mecanica', this.fn('texto_habilidade', w.curso?.nome ?? ''));
       this.subirNivel();
     }
+    this.fecharSemana(now);
     if (s.world.curso && s.tarefas.length) this.refrescar();
     else this.atualizarPasso();
     if (s.world.banAt !== null && now >= s.world.banAt) this.pedirBanimento();
+  }
+
+  /** Payday: salary in, bills out. Closing a week in the red costs reputation. */
+  private fecharSemana(now: number): void {
+    const f = fecharSemanas(this.get().world, this.cfg, now);
+    if (!f.semanas) return;
+    const vermelho = f.world.creditos < 0;
+    this.set({ world: vermelho ? aplicar(f.world, { chave: 'reputacao', quanto: -1 }, this.cfg, now) : f.world });
+    const aviso = this.fn(vermelho ? 'texto_semana_vermelho' : 'texto_semana', f.salario, f.contas);
+    this.sis(aviso, 'nota');
+    this.toast('semana', aviso);
+    if (this.ocioso) this.salvar();
   }
 
   /** Recomputes everything derived from the story and the world. Never call it from inside an Ink external. */
@@ -621,12 +685,13 @@ export class Game {
         backup: Boolean(v['backup']),
         lado: String(v['lado'] ?? ''),
         guia: this.fn('guia_nome'),
+        semGuia: this.fnBool('sem_guia'),
       },
       locaisView: this.get().locais.map((id) => ({
         id,
         nome: this.fn(`local_${id}_nome`),
         desc: this.fn(`local_${id}_desc`),
-        aoVivo: this.fn(`local_${id}_aovivo`).split(';').map((x) => x.trim()).filter(Boolean),
+        aoVivo: this.fn(`local_${id}_aovivo`).split(';').map((x) => x.trim()).filter((x) => x && x !== 'Ninguém'), // the script says "Ninguém" for an empty place: that is nobody, not a person
       })),
       cena: (this.story.state.currentPathString ?? '').split('.')[0],
     });
@@ -736,7 +801,7 @@ export class Game {
     return this.novaLinha({ tipo: 'eu', texto }).id;
   }
 
-  private digitarLinha(tipo: TipoLinha, quem: string, texto: string, pausa: number, titulo?: string): Promise<void> {
+  private digitarLinha(tipo: TipoLinha, quem: string, texto: string, pausa: number, titulo?: string, cara?: string): Promise<void> {
     return this.enfileirar(async () => {
       const ultima = this.get().linhas.at(-1);
       let id: number;
@@ -746,7 +811,7 @@ export class Game {
         inicio = ultima.texto.length + 2;
         this.set({ linhas: this.get().linhas.map((l) => (l.id === id ? { ...l, texto: `${l.texto}\n\n${texto}` } : l)) });
       } else {
-        id = this.novaLinha({ tipo, quem, texto, titulo }).id;
+        id = this.novaLinha({ tipo, quem, texto, titulo, cara }).id;
       }
       const total = this.get().linhas.find((l) => l.id === id)?.texto.length ?? texto.length;
       await this.escrever(id, inicio, total);
@@ -814,7 +879,7 @@ export class Game {
     }
     const n = opcoes ? escolhaLocal(texto, nomes) : -1;
     if (n >= 0) return this.escolher(n, false);
-    await this.digitarLinha('ia', 'IA', this.fn(opcoes ? 'texto_ia_enrolando' : 'texto_ia_livre'), 100);
+    await this.digitarLinha('ia', this.get().perfil.guia || 'IA', this.fn(opcoes ? 'texto_ia_enrolando' : 'texto_ia_livre'), 100);
   }
 
   private resumo(): Record<string, unknown> {
@@ -885,7 +950,8 @@ export class Game {
       }
       this.story.state.LoadJson(d.ink);
       this.set({ ...d.ui, world: d.world, linhas: d.ui.linhas.slice(-30) });
-      this.noBan = Boolean(d.ui.banido);
+      // the ban happens once: after it the timer that armed it must never fire again, reload or not
+      this.noBan = Boolean(this.story.variablesState['ban_feito']);
       return true;
     } catch {
       this.set({ incompativel: true });

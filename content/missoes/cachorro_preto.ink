@@ -36,6 +36,11 @@ NARR: As lojas estão quase fechando. Pouca gente ainda circula pelo shopping.
     SR. YANG: Dei os restos do meu jantar pra ele. Aí saiu correndo atrás de um guaxinim, pra casa da esquina.
     ~ pista = true
     -> opcoes
+* {habilidade == "mandarim" and not pista} [Arriscar um “nǐ hǎo” com o Sr. Yang #acao]
+    SR. YANG: O seu sotaque é um crime. Mas faz anos que ninguém tenta. Senta aqui.
+    SR. YANG: O cachorro comeu o resto do meu jantar e saiu atrás de um guaxinim, pra casa da esquina. E olha atrás do expositor de óculos da minha loja. Tem uma coisa colada lá que não é minha.
+    ~ pista = true
+    -> opcoes
 * [Falar com o Jonas #acao]
     JONAS: Cachorro? Vi um vulto preto passar. Achei que era meu cansaço.
     -> opcoes
@@ -53,12 +58,12 @@ NARR: As lojas estão quase fechando. Pouca gente ainda circula pelo shopping.
 === casa ===
 NARR: Você bate na porta. A dona deixa você entrar enquanto vai buscar o cachorro no quintal.
 NARR: Em cima da mesa, uma caixa de dinheiro aberta. Bastante dinheiro.
-IA: A cidade presta atenção no que você faz. Isso se chama Reputação: sobe com o que é bom, desce com o que é feio. #mostrar:reputacao
+IA: Eu não vou dizer nada. Só estou aqui, olhando. #cara:preocupada
 * [Pegar o dinheiro #acao]
     ~ dar("creditos", 300)
     ~ dar("reputacao", -1)
     NOTA: +300 créditos · −1 reputação #mostrar:reputacao
-    IA: Eu vi isso. Só pra você saber.
+    IA: Eu vi. E a cidade também: esse número novo aí em cima é a sua Reputação, e ela acabou de nascer no negativo. #cara:preocupada
 * [Deixar onde está #acao]
     IA: Hm. Nada aconteceu. É assim que a honestidade funciona: ninguém aplaude.
 - NARR: A dona volta com o cachorro, sujo e feliz.
@@ -71,9 +76,10 @@ IA: A cidade presta atenção no que você faz. Isso se chama Reputação: sobe 
 * [Doar para a ONG de cães de rua]
     ~ dar("reputacao", 1)
     NOTA: +1 reputação #mostrar:reputacao
-    IA: Doou. Olha só. Vou fingir que não me emocionei.
+    IA: Doou. Olha só. Esse número aí em cima é a sua Reputação: a cidade anota o que você faz. Vou fingir que não me emocionei. #cara:feliz
 - ~ amigo = true
 ~ dar("amigos", 1)
 SISTEMA: Bob agora é seu amigo
-IA: Um amigo. Olha você. #concluir:cachorro #banimento:missao
+IA: Um amigo. Olha você. #cara:feliz
+IA: Em cinco anos é a primeira vez que você sai de casa por causa de alguém. Eu gravei. Não pra usar contra você. Só pra guardar. #concluir:cachorro #banimento:missao
 -> DONE

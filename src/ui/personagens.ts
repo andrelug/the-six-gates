@@ -30,7 +30,7 @@ export const PERSONAGENS: Record<string, Personagem> = {
 };
 
 /** Senders that are someone in the cast under another name. */
-const APELIDOS: Record<string, string> = { bancolumen: 'alvaro', numerodesconhecido: 'desconhecido' };
+const APELIDOS: Record<string, string> = { bancolumen: 'alvaro', numerodesconhecido: 'desconhecido', eco: 'ia', oficialramos: 'ramos' };
 
 /** "CÉLIA" / "Célia" → "celia". */
 export const idDe = (nome: string) => nome.replace(/^(prof|sr|sra|oficial|instrutor|dr)\.?\s+/i, '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]/g, '');

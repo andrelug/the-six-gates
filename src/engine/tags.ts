@@ -4,8 +4,11 @@ import { missaoPorId } from './missoes';
 // Parser for the tags written in the .ink files. Unknown or malformed tags throw, so the script test catches typos.
 
 // treino / trabalho / educacao are the panel actions: each one appears when its mission hands it over.
-export const MODULOS = ['carteira', 'saude', 'energia', 'portoes', 'passo', 'xp', 'reputacao', 'treino', 'trabalho', 'educacao', 'ia', 'missoes', 'tarefas', 'mensagens', 'perfil', 'cidade'] as const;
+export const MODULOS = ['carteira', 'saude', 'energia', 'portoes', 'passo', 'xp', 'reputacao', 'treino', 'trabalho', 'educacao', 'ia', 'missoes', 'tarefas', 'mensagens', 'perfil', 'cidade', 'contador'] as const;
 export type Modulo = (typeof MODULOS)[number];
+
+/** Expressions the AI's face art exists for (public/img/rostos/ia_<cara>.jpg); anything else in #cara fails the script test. */
+export const CARAS = ['feliz', 'sarcastica', 'preocupada', 'glitch'] as const;
 
 export const ACOES_PAINEL = ['treino', 'trabalho', 'educacao'] as const;
 export type AcaoId = (typeof ACOES_PAINEL)[number];
@@ -18,7 +21,8 @@ export type Tag =
   | { nome: 'local'; id: string }
   | { nome: 'viajar'; id: string }
   | { nome: 'sistema'; texto: string }
-  | { nome: 'evento'; evento: 'banimento' | 'religar' }
+  | { nome: 'evento'; evento: 'banimento' | 'simples' | 'religar' }
+  | { nome: 'cara'; cara: string }
   | { nome: 'input'; variavel: string; numero: boolean }
   | { nome: 'curso'; curso: string }
   | { nome: 'mensagem'; de: string; papel: string; texto: string; knot?: string }
@@ -76,8 +80,12 @@ export function parseTags(brutas: readonly string[]): Tag[] {
         out.push(nome === 'curso' ? { nome, curso: arg } : { nome, texto: arg });
         break;
       case 'evento':
-        if (arg !== 'banimento' && arg !== 'religar') throw new Error(`tag #evento: unknown event "${arg}"`);
+        if (arg !== 'banimento' && arg !== 'simples' && arg !== 'religar') throw new Error(`tag #evento: unknown event "${arg}"`);
         out.push({ nome, evento: arg });
+        break;
+      case 'cara':
+        if (!(CARAS as readonly string[]).includes(arg)) throw new Error(`tag #cara: unknown expression "${arg}"`);
+        out.push({ nome, cara: arg });
         break;
       case 'input':
         if (!/^[a-z_][a-z0-9_]*$/.test(arg)) throw new Error(`tag #input: bad variable "${arg}"`);

@@ -2,7 +2,7 @@
 
 import { memo, type CSSProperties } from 'react';
 import type { Linha } from '@/engine/store';
-import { srcAcao, srcLocal } from './arte';
+import { srcAcao, srcLocal, srcRosto } from './arte';
 import { COR_EVENTO, iconeEfeito, textoEfeito } from './efeitos';
 import { Icone, type NomeIcone } from './icones';
 import { LOCAIS } from './locais';
@@ -10,8 +10,8 @@ import { hueDe, idDe, personagemDe } from './personagens';
 import { Rosto } from './Rosto';
 import s from './visual.module.css';
 
-const ICONE_ACAO: Record<string, NomeIcone> = { treino: 'halter', trabalho: 'ferramenta', educacao: 'livro', viagem: 'pino' };
-const ROTULO_ACAO: Record<string, string> = { treino: 'Treino', trabalho: 'Trabalho', educacao: 'Educação', viagem: 'Viagem' };
+const ICONE_ACAO: Record<string, NomeIcone> = { treino: 'halter', trabalho: 'ferramenta', educacao: 'livro', viagem: 'pino', energetico: 'raio' };
+const ROTULO_ACAO: Record<string, string> = { treino: 'Treino', trabalho: 'Trabalho', educacao: 'Educação', viagem: 'Viagem', energetico: 'Shopping' };
 
 export interface Contexto {
   lado: string;
@@ -36,10 +36,14 @@ export const LinhaRica = memo(function LinhaRica({ l, ant, visivel, c }: { l: Li
       const p = personagemDe(l.quem ?? '');
       const hue = l.tipo === 'ia' ? 190 : (p?.hue ?? hueDe(l.quem ?? ''));
       const primeira = !mesmo(ant, l);
-      const nome = l.tipo === 'ia' ? c.guia : (p?.nome ?? l.quem);
+      // the face comes back mid-speech only when the expression art really changes
+      const idRosto = l.tipo === 'ia' ? 'ia' : (p?.id ?? '');
+      // a guide line keeps the name of whoever was guiding when it was said (the AI, then Ramos or the freed AI)
+      const nome = l.tipo === 'ia' ? (l.quem && l.quem !== 'IA' ? l.quem : c.guia) : (p?.nome ?? l.quem);
+      const quemRosto = l.tipo === 'ia' ? (/^ramos/i.test(nome ?? '') ? 'Ramos' : 'IA') : (l.quem ?? '');
       return (
         <div className={`${s.fala} ${l.tipo === 'ia' ? s.falaIa : s.falaNpc} ${primeira ? '' : s.seguida}`} style={{ ['--h' as string]: hue } as CSSProperties} data-quem={p?.id ?? 'x'}>
-          <div className={s.falaFace}>{primeira && <Rosto quem={l.tipo === 'ia' ? 'IA' : (l.quem ?? '')} tam={48} borda={false} />}</div>
+          <div className={s.falaFace}>{(primeira || srcRosto(idRosto, l.cara) !== srcRosto(idRosto, ant?.cara)) && <Rosto quem={quemRosto} tam={48} borda={false} cara={l.cara} />}</div>
           <div className={s.falaCorpo}>
             {primeira && (
               <header className={s.falaTopo}>
@@ -66,7 +70,7 @@ export const LinhaRica = memo(function LinhaRica({ l, ant, visivel, c }: { l: Li
       const ev = l.ev!;
       const img = srcAcao(ev.id);
       return (
-        <div className={s.cartaoAcao} style={{ ['--h' as string]: COR_EVENTO[ev.id] } as CSSProperties}>
+        <div className={`${s.cartaoAcao} ${ev.falhou ? s.cartaoFalhou : ''}`} style={{ ['--h' as string]: ev.falhou ? 350 : COR_EVENTO[ev.id] } as CSSProperties}>
           <div className={s.cartaoArte}>
             {img ? (
               // eslint-disable-next-line @next/next/no-img-element

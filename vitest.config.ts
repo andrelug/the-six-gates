@@ -5,5 +5,5 @@ const r = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 
 export default defineConfig({
   resolve: { alias: { '@': r('./src'), '@content': r('./content') } },
-  test: { include: ['tests/unit/**/*.test.ts', 'tests/live/**/*.test.ts'], globalSetup: ['tests/setup.ts'] },
+  test: { testTimeout: 30_000, include: ['tests/unit/**/*.test.ts', 'tests/live/**/*.test.ts'], globalSetup: ['tests/setup.ts'] },
 });

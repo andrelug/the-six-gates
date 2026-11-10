@@ -25,7 +25,27 @@ const GRADE: Record<string, [number, number]> = {
 };
 const CIANO = 0x7df9ff, AMBAR = 0xffb020;
 
+// --- look knobs: cel shading, ink + neon outlines, night lighting (lengths in world units)
+const DEGRAUS = [14, 56, 150, 255]; // cel ramp over N·L = -1..1 (0..255): deep shadow, shadow, mid tone, lit
+const ESP_TINTA = 0.07; // ink outline thickness
+const ESP_NEON = 0.16; // outer edge of the hue rim around the ink (rim width = ESP_NEON - ESP_TINTA)
+const TINTA = 0.012; // ink darkness (multiplies the rim colour)
+const RECUO = 0.6; // outlines only show where what lies behind is at least this much farther away (0 = every groove)
+const NEON = 1; // idle brightness of the hue rim
+const JANELA = 0.9; // brightness of the lit window panes of the GLB models
+const APAGADAS = 22; // % of small GLB window panes left dark
+const GANHO = 0.6; // extra rim / pane brightness at full hover or objective glow
+const POCA = 0.9; // opacity of the ground glow pool under an open place
+const REFLEXO = 0.22; // neon smears on the wet asphalt
+const CHAVE = 3.2, CONTRA = 2.2, AMBIENTE = 1.7, FONTE = 9; // pink key, cyan rim, hemisphere fill, fountain point light
+const COR_CHAVE = 0xff8ec2, COR_CONTRA = 0x7fe6f0, COR_CEU = 0x8f9bff, COR_CHAO = 0x5a3470, NEVOA = 0x070a1c;
+const TOM = new THREE.Color(0.82, 0.85, 1); // multiplies the GLB tint: a touch darker, pushed toward navy
+const LUZES = [0xffd23f, 0xffd23f, 0xffe9a8, 0x2de2e6, 0xff3d8b].map((c) => new THREE.Color(c)); // lit pane colours
+
 const cor = (h: number, s: number, l: number) => new THREE.Color().setHSL(h / 360, s, l);
+// the hue as the label pills show it (`--c` in cidade3d.module.css)
+const corNeon = (h: number) => new THREE.Color().setHSL(h / 360, 0.85, 0.62, THREE.SRGBColorSpace);
+const lcg = (sd: number) => () => (sd = (sd * 16807) % 2147483647) / 2147483647;
 const easeOutBack = (x: number) => 1 + 2.70158 * (x - 1) ** 3 + 1.70158 * (x - 1) ** 2;
 const canvasDe = (w: number, h: number) => {
   const c = document.createElement('canvas');
@@ -39,9 +59,8 @@ function texJanelas() {
   const [a, x] = canvasDe(N * C, N * C), [b, y] = canvasDe(N * C, N * C);
   x.fillStyle = '#fff'; x.fillRect(0, 0, N * C, N * C);
   y.fillStyle = '#000'; y.fillRect(0, 0, N * C, N * C);
-  let sd = 7;
-  const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
-  const lum = ['#ffd98a', '#ffc46b', '#ffe9b8', '#9fd8ff'];
+  const rnd = lcg(7);
+  const lum = ['#ffd23f', '#ffc46b', '#ffe9b8', '#2de2e6', '#ff3d8b'];
   for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
     x.fillStyle = '#3a4560'; x.fillRect(c * C + 7, r * C + 6, C - 14, C - 13);
     if (rnd() < 0.55) { y.fillStyle = lum[Math.floor(rnd() * lum.length)]; y.fillRect(c * C + 7, r * C + 6, C - 14, C - 13); }
@@ -71,21 +90,112 @@ function texRampa() {
   return new THREE.CanvasTexture(c);
 }
 
+// cel ramp for MeshToonMaterial.gradientMap (a DataTexture is NearestFilter by default, which keeps the steps hard)
+function texDegraus() {
+  const t = new THREE.DataTexture(new Uint8Array(DEGRAUS), DEGRAUS.length, 1, THREE.RedFormat);
+  t.needsUpdate = true;
+  return t;
+}
+
+// soft neon blobs on black: emissive map of the wet asphalt, tiled along each road
+function texPocas() {
+  const [c, x] = canvasDe(256, 64);
+  x.fillStyle = '#000'; x.fillRect(0, 0, 256, 64);
+  const rnd = lcg(11), tons = ['255,61,139', '45,226,230', '155,107,255'];
+  for (let i = 0; i < 9; i++) {
+    const px = rnd() * 256, py = 10 + rnd() * 44, r = 22 + rnd() * 30;
+    for (const dx of [-256, 0, 256]) { // drawn three times so the tile wraps along the road
+      const g = x.createRadialGradient(px + dx, py, 0, px + dx, py, r);
+      g.addColorStop(0, `rgba(${tons[i % 3]},.45)`); g.addColorStop(1, `rgba(${tons[i % 3]},0)`);
+      x.fillStyle = g; x.fillRect(px + dx - r, py - r, r * 2, r * 2);
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+// Inverted-hull outline of `geo`, baked: two shells pushed out along position-welded normals, mitred so every flat face
+// moves by the full thickness. Vertex colour is near black on the inner (ink) shell and white on the outer (neon) one,
+// so a single BackSide material in the place hue draws the ink line and the rim around it.
+function casca(geo: THREE.BufferGeometry, tinta: number, neon: number) {
+  const pos = geo.attributes.position, nor = geo.attributes.normal, n = pos.count;
+  const chaves: string[] = [], faces = new Map<string, number[]>(); // distinct face normals per welded position
+  for (let i = 0; i < n; i++) {
+    const c = `${Math.round(pos.getX(i) * 1e3)},${Math.round(pos.getY(i) * 1e3)},${Math.round(pos.getZ(i) * 1e3)}`;
+    const x = nor.getX(i), y = nor.getY(i), z = nor.getZ(i);
+    let l = faces.get(c);
+    if (!l) faces.set(c, (l = []));
+    let j = 0;
+    while (j < l.length && l[j] * x + l[j + 1] * y + l[j + 2] * z < 0.98) j += 3;
+    if (j === l.length) l.push(x, y, z);
+    chaves.push(c);
+  }
+  const dirs = new Map<string, THREE.Vector3>();
+  for (const [c, l] of faces) {
+    const d = new THREE.Vector3();
+    for (let j = 0; j < l.length; j += 3) { d.x += l[j]; d.y += l[j + 1]; d.z += l[j + 2]; }
+    if (d.length() < 0.2) continue; // both sides of a thin sheet meet here: each vertex keeps its own normal
+    d.normalize();
+    let m = 1;
+    for (let j = 0; j < l.length; j += 3) m = Math.min(m, d.x * l[j] + d.y * l[j + 1] + d.z * l[j + 2]);
+    dirs.set(c, d.multiplyScalar(1 / Math.max(m, 0.45)));
+  }
+  const P = new Float32Array(n * 6), C = new Float32Array(n * 6), v = new THREE.Vector3();
+  for (let i = 0; i < n; i++) {
+    const d = dirs.get(chaves[i]) ?? v.fromBufferAttribute(nor, i);
+    [tinta, neon].forEach((e, s) => {
+      const o = (s * n + i) * 3;
+      P[o] = pos.getX(i) + d.x * e; P[o + 1] = pos.getY(i) + d.y * e; P[o + 2] = pos.getZ(i) + d.z * e;
+      C[o] = C[o + 1] = C[o + 2] = s ? 1 : TINTA;
+    });
+  }
+  const idx = geo.index ? Array.from(geo.index.array) : Array.from({ length: n }, (_, i) => i);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(P, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(C, 3));
+  g.setIndex([...idx, ...idx.map((i) => i + n)]);
+  return g;
+}
+// slivers (antennas, trims, clock hands) would turn into fat neon sticks: no outline below 0.2 in any dimension
+// Outline shader tweak: depth-test the hull RECUO further back, so it survives on silhouettes and big steps but not in every
+// groove of a detailed facade (which would flood the building with rim colour).
+const recuar = (s: { vertexShader: string }) => {
+  s.vertexShader = s.vertexShader.replace('#include <project_vertex>', `#include <project_vertex>
+  vec4 fundo = projectionMatrix * (mvPosition - vec4(0.0, 0.0, ${RECUO.toFixed(3)}, 0.0));
+  gl_Position.z = fundo.z * gl_Position.w / fundo.w;`);
+};
+const grosso = (geo: THREE.BufferGeometry, e = 1) => {
+  if (!geo.boundingBox) geo.computeBoundingBox();
+  const s = geo.boundingBox!.getSize(new THREE.Vector3());
+  return Math.min(s.x, s.y, s.z) * e >= 0.2;
+};
+
 export interface Modelo { alt: number; rot: number; anim?: (t: number) => void }
 type Obj = THREE.Object3D;
+interface Brilho { m: THREE.MeshBasicMaterial; c: THREE.Color }
 
 export class Kit {
   lixo: { dispose(): void }[] = [];
-  cores: THREE.MeshStandardMaterial[] = [];
-  janelas: THREE.MeshStandardMaterial[] = [];
+  cores: THREE.MeshToonMaterial[] = [];
+  janelas: THREE.MeshToonMaterial[] = [];
+  brilhos: Brilho[] = []; // unlit glowing materials (hue rim, lit panes) with their idle colour
+  neon?: THREE.MeshBasicMaterial; // outline material of the building being built; pieces get no outline while unset
   jan = texJanelas();
-  constructor() { this.lixo.push(this.jan.mapa, this.jan.emis); }
+  grad = texDegraus();
+  constructor() { this.lixo.push(this.jan.mapa, this.jan.emis, this.grad); }
   g<T extends { dispose(): void }>(x: T): T { this.lixo.push(x); return x; }
-  std(color: THREE.ColorRepresentation, o: THREE.MeshStandardMaterialParameters = {}) {
-    return this.g(new THREE.MeshStandardMaterial({ color, roughness: 0.8, metalness: 0.05, flatShading: true, ...o }));
+  // the standard surface: cel shaded through the shared ramp
+  std(color: THREE.ColorRepresentation, o: THREE.MeshToonMaterialParameters = {}) {
+    return this.g(new THREE.MeshToonMaterial({ color, gradientMap: this.grad, ...o }));
   }
   basico(color: THREE.ColorRepresentation, o: THREE.MeshBasicMaterialParameters = {}) {
     return this.g(new THREE.MeshBasicMaterial({ color, toneMapped: false, ...o }));
+  }
+  brilho(c: THREE.Color, o: THREE.MeshBasicMaterialParameters = {}) {
+    const m = this.basico(c, o);
+    this.brilhos.push({ m, c });
+    return m;
   }
   // hue-tinted body that can glow (hover / target / rise)
   corpo(h: number, s = 0.45, l = 0.52, b = 0) {
@@ -94,7 +204,7 @@ export class Kit {
     this.cores.push(m);
     return m;
   }
-  janela(h: number, s = 0.3, l = 0.66, o: THREE.MeshStandardMaterialParameters = {}) {
+  janela(h: number, s = 0.3, l = 0.66, o: THREE.MeshToonMaterialParameters = {}) {
     const m = this.std(cor(h, s, l), { map: this.jan.mapa, emissiveMap: this.jan.emis, emissive: 0xffffff, ...o });
     this.janelas.push(m);
     return m;
@@ -103,6 +213,8 @@ export class Kit {
     const o = new THREE.Mesh(this.g(geo), m);
     o.position.set(x, y, z);
     o.castShadow = o.receiveShadow = true;
+    if (this.neon && (Array.isArray(m) || (m as THREE.MeshToonMaterial).isMeshToonMaterial) && grosso(geo))
+      o.add(new THREE.Mesh(this.g(casca(geo, ESP_TINTA, ESP_NEON)), this.neon));
     p.add(o);
     return o;
   }
@@ -138,15 +250,61 @@ const ARQUIVOS: Record<string, string> = {
   vao: 'overpass-deck-span-874f0c', pilar: 'overpass-pier-cddd4b',
 };
 const glb = new Map<string, Obj>();
+// ponytail: one outline per cached geometry, baked for the scale of its first use; key by scale too if a model is ever placed at two sizes
+const cascas = new WeakMap<THREE.BufferGeometry, THREE.BufferGeometry>();
+const malhas = (o: Obj) => {
+  const ms: THREE.Mesh[] = [];
+  o.traverse((n) => { if ((n as THREE.Mesh).isMesh) ms.push(n as THREE.Mesh); });
+  return ms;
+};
+
+// The models have no textures, only vertex colours, and their glass is the one bluish colour on vertical faces. Move most of
+// those panes into a child mesh (flagged `luz`, drawn unlit by peca3d) so the windows glow at night. Both triangles of a
+// rectangular pane share a bounding box, which seeds the pane's colour. Runs once per file; the clones share the result.
+function acender(cena: Obj) {
+  const caixa = new THREE.Box3(), v = new THREE.Vector3();
+  for (const m of malhas(cena)) {
+    const g = m.geometry, { position: pos, normal: nor, color: col } = g.attributes, idx = g.index;
+    if (!col || !nor || !idx || (m.material as THREE.Material).transparent) continue;
+    const corpo: number[] = [], luz: number[] = [], cores = new Float32Array(pos.count * 3);
+    for (let t = 0; t < idx.count; t += 3) {
+      const tri = [idx.getX(t), idx.getX(t + 1), idx.getX(t + 2)], a = tri[0];
+      let c: THREE.Color | undefined;
+      if (col.getZ(a) > 1.5 * col.getX(a) && col.getZ(a) >= col.getY(a) && Math.abs(nor.getY(a)) < 0.3) {
+        caixa.makeEmpty();
+        for (const i of tri) caixa.expandByPoint(v.fromBufferAttribute(pos, i));
+        let hash = 0;
+        for (const u of [...caixa.min.toArray(), ...caixa.max.toArray()]) hash = (hash * 31 + Math.round(u * 100)) | 0;
+        hash = Math.abs(hash);
+        caixa.getSize(v);
+        if (Math.max(v.x, v.z) * v.y > 12) c = LUZES[0]; // a whole glazed front: always lit, warm
+        else if (hash % 100 >= APAGADAS) c = LUZES[(hash >> 8) % LUZES.length];
+      }
+      (c ? luz : corpo).push(...tri);
+      if (c) for (const i of tri) c.toArray(cores, i * 3);
+    }
+    if (!luz.length) continue;
+    g.setIndex(corpo);
+    const lg = new THREE.BufferGeometry();
+    lg.setAttribute('position', pos);
+    lg.setAttribute('color', new THREE.BufferAttribute(cores, 3));
+    lg.setIndex(luz);
+    const l = new THREE.Mesh(lg);
+    l.userData.luz = true;
+    m.add(l);
+  }
+}
+
 let carga: Promise<void> | undefined;
 export const carregarModelos = () => (carga ??= (() => {
   const loader = new GLTFLoader();
   return Promise.all(Object.entries(ARQUIVOS).map(([nome, arq]) =>
-    loader.loadAsync(`/models/${arq}.glb`).then((r) => { glb.set(nome, r.scene); }, () => {}))).then(() => {});
+    loader.loadAsync(`/models/${arq}.glb`).then((r) => { acender(r.scene); glb.set(nome, r.scene); }, () => {}))).then(() => {});
 })());
 
-// Clone a loaded model into `p`: scaled by `esc` (or to fit w x d x alt), centred on x/z, bottom at y, tinted by the place hue,
-// with its materials wired into the hover/target glow. Geometry stays shared with the cache, so only materials are disposed.
+// Clone a loaded model into `p`: scaled by `esc` (or to fit w x d x alt), centred on x/z, bottom at y. Its vertex colours are
+// kept, cel shaded and tinted by the place hue (pushed toward navy), with ink + neon outline, glowing panes and the
+// hover/target glow wired in. Geometry (outline included) stays shared with the cache, so only materials are disposed.
 interface Lugar { w?: number; d?: number; alt?: number; esc?: number; x?: number; y?: number; z?: number; rot?: number }
 function peca3d(k: Kit, p: Obj, nome: string, h: number, { w = 99, d = 99, alt = 99, esc, x = 0, y = 0, z = 0, rot = 0 }: Lugar) {
   const src = glb.get(nome);
@@ -157,19 +315,21 @@ function peca3d(k: Kit, p: Obj, nome: string, h: number, { w = 99, d = 99, alt =
   o.scale.setScalar(e);
   o.rotation.y = rot;
   o.position.set(x - c.x * e * Math.cos(rot) - c.z * e * Math.sin(rot), y - caixa.min.y * e, z - c.z * e * Math.cos(rot) + c.x * e * Math.sin(rot));
-  o.traverse((n) => {
-    if (!(n as THREE.Mesh).isMesh) return;
-    const m = n as THREE.Mesh;
-    const mat = k.g((m.material as THREE.MeshStandardMaterial).clone());
-    mat.flatShading = true;
-    mat.color.setHSL(h / 360, 0.5, 0.8);
-    mat.emissive = cor(h, 0.75, 0.5);
-    mat.emissiveIntensity = 0;
+  const tom = cor(h, 0.5, 0.8).multiply(TOM);
+  let luz: THREE.MeshBasicMaterial | undefined;
+  for (const m of malhas(o)) {
+    if (m.userData.luz) { m.material = (luz ??= k.brilho(new THREE.Color().setScalar(JANELA), { vertexColors: true })); continue; }
+    const orig = m.material as THREE.MeshStandardMaterial;
+    const mat = k.std(tom, { vertexColors: orig.vertexColors, transparent: orig.transparent, opacity: orig.opacity, emissive: cor(h, 0.75, 0.5), emissiveIntensity: 0 });
     mat.userData.b = 0;
     k.cores.push(mat);
     m.material = mat;
     m.castShadow = m.receiveShadow = true;
-  });
+    if (!k.neon || orig.transparent || !grosso(m.geometry, e)) continue;
+    let hull = cascas.get(m.geometry);
+    if (!hull) cascas.set(m.geometry, (hull = casca(m.geometry, ESP_TINTA / e, ESP_NEON / e)));
+    m.add(new THREE.Mesh(hull, k.neon));
+  }
   p.add(o);
   return { o, alt: t.y * e };
 }
@@ -185,7 +345,7 @@ const grande = (nome: string, proc: Fab, w: number, d: number, alt: number): Fab
 
 const apartamento = (k: Kit, g: THREE.Group, h: number): Modelo => {
   const jm = k.janela(h, 0.4, 0.72), teto = k.std(0x1c2236), acc = k.corpo(h, 0.6, 0.55, 0.2);
-  const metal = k.std(0x586079, { metalness: 0.6, roughness: 0.4 });
+  const metal = k.std(0x586079);
   k.jcaixa(g, 4.2, 9, 3.8, jm, teto, 0, 0, -0.3);
   k.jcaixa(g, 2.8, 1.6, 2.6, jm, teto, 0, 9, -0.3);
   k.jcaixa(g, 2.4, 4.2, 2.4, jm, teto, 3.3, 0, 0.9);
@@ -200,11 +360,11 @@ const apartamento = (k: Kit, g: THREE.Group, h: number): Modelo => {
 
 const academia = (k: Kit, g: THREE.Group, h: number): Modelo => {
   const jm = k.janela(h, 0.4, 0.68), teto = k.std(0x1a2a24), acc = k.corpo(h, 0.7, 0.5, 0.3);
-  const metal = k.std(0x6a7570, { metalness: 0.7, roughness: 0.35 });
+  const metal = k.std(0x6a7570);
   k.jcaixa(g, 6.4, 2.6, 4.4, jm, teto, 0, 0, 0);
   k.caixa(g, 6.9, 0.25, 4.9, teto, 0, 2.6, 0);
   k.caixa(g, 6.5, 0.3, 0.12, acc, 0, 1.9, 2.25);
-  k.caixa(g, 1.6, 1.6, 0.1, k.std(0x07100d, { metalness: 0.6, roughness: 0.2 }), 0, 0, 2.2);
+  k.caixa(g, 1.6, 1.6, 0.1, k.std(0x07100d), 0, 0, 2.2);
   [-1.9, 1.9].forEach((x) => k.caixa(g, 0.3, 1.1, 0.3, metal, x, 2.85, 0));
   const hal = new THREE.Group();
   hal.position.set(0, 4.5, 0);
@@ -238,9 +398,9 @@ const educacao = (k: Kit, g: THREE.Group, h: number): Modelo => {
 };
 
 const agencia = (k: Kit, g: THREE.Group, h: number): Modelo => {
-  const vid = k.janela(h, 0.35, 0.55, { metalness: 0.5, roughness: 0.25 }), teto = k.std(0x1c1a14);
+  const vid = k.janela(h, 0.35, 0.55), teto = k.std(0x1c1a14);
   const acc = k.corpo(h, 0.85, 0.55, 0.45);
-  const metal = k.std(0x8a8f9c, { metalness: 0.8, roughness: 0.3 });
+  const metal = k.std(0x8a8f9c);
   k.jcaixa(g, 5.4, 2, 4.6, vid, teto, 0, 0, 0);
   k.caixa(g, 5.6, 0.18, 4.8, acc, 0, 2, 0);
   k.jcaixa(g, 3.6, 8.4, 3.6, vid, teto, 0, 2.2, 0);
@@ -268,7 +428,7 @@ const shopping = (k: Kit, g: THREE.Group, h: number): Modelo => {
     const a = k.caixa(g, 1.14, 0.1, 1.0, i % 2 ? branco : acc, -2.85 + i * 1.14, 1.75, 2.85);
     a.rotation.x = 0.4;
   }
-  k.caixa(g, 2.4, 1.7, 0.1, k.std(0x1a0f18, { metalness: 0.6, roughness: 0.2 }), 0, 0, 2.52);
+  k.caixa(g, 2.4, 1.7, 0.1, k.std(0x1a0f18), 0, 0, 2.52);
   return { alt: 5.4, rot: 5.4 };
 };
 
@@ -291,7 +451,7 @@ const banco = (k: Kit, g: THREE.Group, h: number): Modelo => {
 
 const posto = (k: Kit, g: THREE.Group, h: number): Modelo => {
   const jm = k.janela(h, 0.12, 0.62), teto = k.std(0x1d2128), cin = k.std(0x6d7684);
-  const metal = k.std(0xaab0bd, { metalness: 0.7, roughness: 0.3 });
+  const metal = k.std(0xaab0bd);
   const bandeira = k.corpo(h, 0.8, 0.5, 0.7);
   k.jcaixa(g, 3.4, 4.4, 3.8, jm, teto, 0, 0, 0);
   k.jcaixa(g, 1.9, 2.6, 3.2, jm, teto, -2.65, 0, 0);
@@ -375,7 +535,7 @@ export const MODELOS: Record<string, Fab> = {
 
 interface Slot {
   id: string; x: number; z: number; hue: number;
-  g?: THREE.Group; m?: Modelo; cores: THREE.MeshStandardMaterial[]; janelas: THREE.MeshStandardMaterial[];
+  g?: THREE.Group; m?: Modelo; cores: THREE.MeshToonMaterial[]; janelas: THREE.MeshToonMaterial[]; brilhos: Brilho[]; poca: THREE.Mesh;
   hit?: THREE.Mesh; holo?: THREE.Group; holoMats: THREE.Material[];
   hv: number; hvAlvo: number; subir: number; flash?: { r: THREE.Mesh; t: number };
 }
@@ -383,38 +543,45 @@ interface Slot {
 export function criarCena(canvas: HTMLCanvasElement, reduzido: boolean): Cena {
   const r = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
   r.setClearColor(0x000000, 0);
-  r.toneMapping = THREE.ACESFilmicToneMapping;
-  r.toneMappingExposure = 1.1;
+  r.toneMapping = THREE.NeutralToneMapping; // keeps the flat cel colours saturated (ACES washes the neon out)
+  r.toneMappingExposure = 1;
   r.shadowMap.enabled = true;
   try {
     const sc = new THREE.Scene();
     const cam = new THREE.PerspectiveCamera(35, 1, 1, 400);
     const k = new Kit();
     const halo = k.g(texHalo()), rampa = k.g(texRampa());
-    sc.fog = new THREE.Fog(0x0c1224, 80, 220);
+    sc.fog = new THREE.Fog(NEVOA, 80, 220);
 
-    // --- lights: cool dusk fill, warm low sun, blue rim, cyan fountain glow
-    const hemi = new THREE.HemisphereLight(0x8fa0ff, 0x3a2745, 1.15);
-    const sol = new THREE.DirectionalLight(0xffb27a, 3.0);
-    sol.position.set(-16, 24, 14);
+    // --- lights: violet night fill, pink key from the front-left (fronts + roofs), cyan rim from the back-right (sides),
+    // cyan fountain glow. The directions keep the axis-aligned faces well inside one step of the cel ramp.
+    const hemi = new THREE.HemisphereLight(COR_CEU, COR_CHAO, AMBIENTE);
+    const sol = new THREE.DirectionalLight(COR_CHAVE, CHAVE);
+    sol.position.set(-10, 22, 20);
     sol.castShadow = true;
     sol.shadow.mapSize.set(2048, 2048);
     Object.assign(sol.shadow.camera, { left: -26, right: 26, top: 22, bottom: -22, near: 1, far: 80 });
     sol.shadow.bias = -0.0005; sol.shadow.normalBias = 0.04;
-    const rim = new THREE.DirectionalLight(0x4d6bff, 1.1);
-    rim.position.set(20, 14, -18);
-    const fonte = new THREE.PointLight(0x5fe3ff, 0, 16, 2);
+    const rim = new THREE.DirectionalLight(COR_CONTRA, CONTRA);
+    rim.position.set(24, 11, -18);
+    const fonte = new THREE.PointLight(0x2de2e6, 0, 16, 2);
     fonte.position.set(0, 1.8, 0.9);
     sc.add(hemi, sol, rim, fonte);
 
-    // --- diorama base, lots, roads
-    const slate = k.std(0x151c33), lote = k.std(0x1d2744), asfalto = k.std(0x0a0f1c, { roughness: 0.95 });
+    // --- diorama base, lots, roads (wet asphalt: glossy PBR instead of cel, with faint neon smears)
+    const slate = k.std(0x151c33), lote = k.std(0x1d2744);
+    const pocas = k.g(texPocas()), pocasZ = k.g(pocas.clone());
+    pocas.repeat.set(1.5, 1);
+    pocasZ.repeat.set(1.25, 1); pocasZ.rotation = Math.PI / 2;
+    const asfalto = (t: THREE.Texture) => k.g(new THREE.MeshStandardMaterial({ color: 0x0a0f1c, roughness: 0.4, metalness: 0.2, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: REFLEXO }));
+    const asfX = asfalto(pocas), asfZ = asfalto(pocasZ);
     k.peca(sc, new THREE.BoxGeometry(HX * 2, 1.2, HZ * 2), slate, 0, -0.6, 0);
     const borda = k.g(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(HX * 2, 1.2, HZ * 2)), k.g(new THREE.LineBasicMaterial({ color: 0x4d6bff, transparent: true, opacity: 0.5 }))));
     borda.position.y = -0.6;
     sc.add(borda);
-    ZS.forEach((z) => { const m = k.peca(sc, new THREE.BoxGeometry(HX * 2, 0.08, 2.2), asfalto, 0, 0.04, z); m.castShadow = false; });
-    XS.forEach((x) => { const m = k.peca(sc, new THREE.BoxGeometry(2.2, 0.08, HZ * 2), asfalto, x, 0.04, 0); m.castShadow = false; });
+    ZS.forEach((z) => { const m = k.peca(sc, new THREE.BoxGeometry(HX * 2, 0.08, 2.2), asfX, 0, 0.04, z); m.castShadow = false; });
+    // a hair higher than the x roads: the two smear patterns would z-fight at the crossings
+    XS.forEach((x) => { const m = k.peca(sc, new THREE.BoxGeometry(2.2, 0.08, HZ * 2), asfZ, x, 0.044, 0); m.castShadow = false; });
     const grade: number[] = [];
     for (let x = -HX; x <= HX; x += 2) grade.push(x, 0.135, -HZ, x, 0.135, HZ);
     for (let z = -HZ; z <= HZ; z += 2) grade.push(-HX, 0.135, z, HX, 0.135, z);
@@ -439,17 +606,6 @@ export function criarCena(canvas: HTMLCanvasElement, reduzido: boolean): Cena {
     postes.forEach((p, i) => { poleI.setMatrixAt(i, new THREE.Matrix4().makeTranslation(p.x, 0, p.z)); bulbI.setMatrixAt(i, new THREE.Matrix4().makeTranslation(p.x, 1.9 + TOPO, p.z)); });
     sc.add(poleI, bulbI);
 
-    // --- slots
-    const slots = new Map<string, Slot>();
-    const tela: Record<string, Tela> = {};
-    const loteGeo = k.g(new THREE.BoxGeometry(PX - 2.4, TOPO, PZ - 2.4));
-    for (const [id, [c, rr]] of Object.entries(GRADE)) {
-      slots.set(id, { id, x: (c - 1) * PX, z: (rr - 1) * PZ, hue: 200, cores: [], janelas: [], holoMats: [], hv: 0, hvAlvo: 0, subir: 1 });
-      tela[id] = { x: -9999, y: 0, z: 0, v: false };
-      const l = k.peca(sc, loteGeo, lote, (c - 1) * PX, TOPO / 2, (rr - 1) * PZ);
-      l.castShadow = false;
-    }
-
     // --- shared effect pieces
     const anelGeo = k.g(new THREE.RingGeometry(0.93, 1, 72).rotateX(-Math.PI / 2));
     const discoGeo = k.g(new THREE.CircleGeometry(1, 48).rotateX(-Math.PI / 2));
@@ -458,6 +614,21 @@ export function criarCena(canvas: HTMLCanvasElement, reduzido: boolean): Cena {
       k.basico(c, { transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, side: THREE.DoubleSide, ...o });
     const fx = (geo: THREE.BufferGeometry, m: THREE.Material, p: Obj) => { const o = new THREE.Mesh(geo, m); p.add(o); return o; };
     const YF = TOPO + 0.06;
+
+    // --- slots, each with a soft glow pool on the ground (lit in the place hue while it is open, spilling onto the roads)
+    const slots = new Map<string, Slot>();
+    const tela: Record<string, Tela> = {};
+    const loteGeo = k.g(new THREE.BoxGeometry(PX - 2.4, TOPO, PZ - 2.4));
+    const pocaGeo = k.g(new THREE.PlaneGeometry(PX + 4, PZ + 4).rotateX(-Math.PI / 2));
+    for (const [id, [c, rr]] of Object.entries(GRADE)) {
+      const poca = fx(pocaGeo, adit(0xffffff, { map: halo, opacity: 0 }), sc);
+      poca.position.set((c - 1) * PX, TOPO + 0.03, (rr - 1) * PZ);
+      poca.visible = false;
+      slots.set(id, { id, x: (c - 1) * PX, z: (rr - 1) * PZ, hue: 200, cores: [], janelas: [], brilhos: [], poca, holoMats: [], hv: 0, hvAlvo: 0, subir: 1 });
+      tela[id] = { x: -9999, y: 0, z: 0, v: false };
+      const l = k.peca(sc, loteGeo, lote, (c - 1) * PX, TOPO / 2, (rr - 1) * PZ);
+      l.castShadow = false;
+    }
 
     const marca = new THREE.Group(); // player marker
     const mAnel = fx(anelGeo, adit(CIANO, { opacity: 0.95 }), marca); mAnel.scale.setScalar(3.9);
@@ -488,8 +659,8 @@ export function criarCena(canvas: HTMLCanvasElement, reduzido: boolean): Cena {
     const corpoGeo = k.g(new THREE.BoxGeometry(0.5, 0.3, 0.95)), cabGeo = k.g(new THREE.BoxGeometry(0.42, 0.24, 0.5));
     const farolGeo = k.g(new THREE.BoxGeometry(0.1, 0.08, 0.05)), poolGeo = k.g(new THREE.PlaneGeometry(0.9, 2.4).translate(0, 1.2, 0).rotateX(Math.PI / 2));
     const farol = k.basico(0xfff2c0), lanterna = k.basico(0xff3030), poolM = adit(0xffe9b0, { opacity: 0.35, alphaMap: rampa });
-    const pinturas = [0xe0554a, 0x3d8bff, 0xf2c14e, 0xc9ced9, 0x59d49a, 0xa66bff].map((c) => k.std(c, { roughness: 0.5, metalness: 0.3 }));
-    const cabM = k.std(0x1a2033, { roughness: 0.3, metalness: 0.5 });
+    const pinturas = [0xe0554a, 0x3d8bff, 0xf2c14e, 0xc9ced9, 0x59d49a, 0xa66bff].map((c) => k.std(c));
+    const cabM = k.std(0x1a2033);
     const L = 0.55;
     const rotas: [number, number, number, number, number, number, number][] = [
       [XS[0], XS[3], ZS[0], ZS[3], 1, 6, 0], [XS[0], XS[3], ZS[0], ZS[3], -1, 5, 40], [XS[1], XS[2], ZS[1], ZS[2], 1, 4.2, 5],
@@ -528,7 +699,7 @@ export function criarCena(canvas: HTMLCanvasElement, reduzido: boolean): Cena {
 
     // --- locked hologram / open building
     const fechar = (s: Slot, hue: number) => {
-      if (s.g) { sc.remove(s.g); s.g = s.m = undefined; s.cores = []; s.janelas = []; }
+      if (s.g) { sc.remove(s.g); s.g = s.m = undefined; s.cores = []; s.janelas = []; s.brilhos = []; s.poca.visible = false; }
       if (s.hit) { sc.remove(s.hit); s.hit = undefined; }
       if (s.holo) return;
       const h = new THREE.Group();
@@ -550,10 +721,16 @@ export function criarCena(canvas: HTMLCanvasElement, reduzido: boolean): Cena {
     };
     const abrir = (s: Slot, hue: number, animar: boolean) => {
       if (s.holo) { sc.remove(s.holo); s.holo = undefined; }
-      k.cores = []; k.janelas = [];
+      const neon = corNeon(hue);
+      k.cores = []; k.janelas = []; k.brilhos = [];
+      k.neon = k.brilho(neon.clone().multiplyScalar(NEON), { side: THREE.BackSide, vertexColors: true });
+      k.neon.onBeforeCompile = recuar;
       const g = new THREE.Group();
       s.m = MODELOS[s.id](k, g, hue);
-      s.g = g; s.cores = k.cores; s.janelas = k.janelas;
+      k.neon = undefined;
+      s.g = g; s.cores = k.cores; s.janelas = k.janelas; s.brilhos = k.brilhos;
+      (s.poca.material as THREE.MeshBasicMaterial).color.copy(neon);
+      s.poca.visible = true;
       g.position.set(s.x, TOPO, s.z);
       sc.add(g);
       const hit = new THREE.Mesh(k.g(new THREE.BoxGeometry(8, s.m.alt, 6.6)), k.g(new THREE.MeshBasicMaterial({ visible: false })));
@@ -599,8 +776,9 @@ export function criarCena(canvas: HTMLCanvasElement, reduzido: boolean): Cena {
       }
       dist *= 0.86; // the box above is a worst case; the real towers are lower, so move in
       baseCam.copy(alvoCam).addScaledVector(dir, dist);
-      (sc.fog as THREE.Fog).near = dist * 0.9;
-      (sc.fog as THREE.Fog).far = dist * 2.6;
+      // navy distance fog: none on the front row, about a third on the back row
+      (sc.fog as THREE.Fog).near = dist * 0.85;
+      (sc.fog as THREE.Fog).far = dist * 2.2;
     };
 
     // --- state
@@ -621,7 +799,7 @@ export function criarCena(canvas: HTMLCanvasElement, reduzido: boolean): Cena {
           else if (!p.aberto && !s.holo) { fechar(s, p.hue); mudou = true; }
         }
         aberto = [...slots.values()].filter((s) => s.m);
-        fonte.intensity = slots.get('praca')?.m ? 22 : 0;
+        fonte.intensity = slots.get('praca')?.m ? FONTE : 0;
         if (a !== atual || b !== alvo) { atual = a; alvo = b; mudou = true; }
         iniciado = true;
         return mudou;
@@ -650,9 +828,9 @@ export function criarCena(canvas: HTMLCanvasElement, reduzido: boolean): Cena {
         cam.position.addScaledVector(dR, px * 1.6 + Math.sin(T * 0.13) * 0.9).addScaledVector(dU, -py * 0.8 + Math.sin(T * 0.1) * 0.4);
         cam.lookAt(alvoCam);
 
-        hemi.intensity = 1.15 + Math.sin(T * 0.5) * 0.05;
+        hemi.intensity = AMBIENTE + Math.sin(T * 0.5) * 0.05;
         (borda.material as THREE.LineBasicMaterial).opacity = 0.45 + Math.sin(T * 0.8) * 0.12;
-        fonte.intensity = fonte.intensity > 0 ? 22 + Math.sin(T * 3) * 3 : 0;
+        fonte.intensity = fonte.intensity > 0 ? FONTE * (1 + Math.sin(T * 3) * 0.13) : 0;
 
         // buildings
         for (const s of slots.values()) {
@@ -669,8 +847,11 @@ export function criarCena(canvas: HTMLCanvasElement, reduzido: boolean): Cena {
           const sy = Math.max(0.001, easeOutBack(s.subir)) * (1 + 0.04 * s.hv);
           s.g.scale.set(1 + 0.03 * s.hv, sy, 1 + 0.03 * s.hv);
           s.g.position.y = TOPO + 0.25 * s.hv;
-          for (const m of s.cores) m.emissiveIntensity = (m.userData.b as number) + glow * 0.7;
+          for (const m of s.cores) m.emissiveIntensity = (m.userData.b as number) + glow * 0.5;
           s.janelas.forEach((w, i) => { w.emissiveIntensity = 1 + glow * 1.1 + 0.06 * Math.sin(T * 0.9 + i * 2); });
+          const viva = 1 + 0.08 * Math.sin(T * 1.6 + s.x); // the neon breathes a little
+          for (const b of s.brilhos) b.m.color.copy(b.c).multiplyScalar(viva * (1 + glow * GANHO));
+          (s.poca.material as THREE.MeshBasicMaterial).opacity = POCA * s.subir * viva * (1 + glow * 0.5);
           s.m?.anim?.(T);
         }
         for (const f of flashes) {

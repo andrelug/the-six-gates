@@ -17,10 +17,11 @@ export function useEstado<T>(seletor: (e: Estado) => T): T {
   return useStore(useJogo().store, seletor);
 }
 
-/** Spread on an element that carries `data-foco`: it stays hidden until the spotlight reaches it, then it lights up. */
-export function useOculto(chave: string): { 'data-oculto'?: '' } {
+/** Spread on an element that carries `data-foco`: it stays hidden until the spotlight reaches it, then it lights up. When the ban hits, it switches off in turn (`data-morto`). */
+export function useOculto(chave: string): { 'data-oculto'?: ''; 'data-morto'?: '' } {
   const oculto = useEstado((e) => e.revelando.includes(chave));
-  return oculto ? { 'data-oculto': '' } : {};
+  const morto = useEstado((e) => e.morrendo.includes(chave));
+  return { ...(oculto ? { 'data-oculto': '' as const } : {}), ...(morto ? { 'data-morto': '' as const } : {}) };
 }
 
 export type Pagina = 'inicio' | 'cidade' | 'missoes' | 'mensagens' | 'perfil' | `local:${string}`;

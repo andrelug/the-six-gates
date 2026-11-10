@@ -23,6 +23,18 @@ VAR fez_bolsa = false
 VAR fez_sorvete = false
 VAR fez_viaduto = false
 VAR fez_semana1 = false
+VAR fez_favor_kael = false
+VAR fez_favor_ramos = false
+VAR fez_escolha = false
+// the ban already happened (it must never fire twice) and the AI is off the air
+VAR ban_feito = false
+VAR silencio = false
+// what the player did for each side before choosing, and what the skills let them notice
+VAR rede_ligada = false
+VAR ouviu_yang = false
+VAR entregou_yang = false
+VAR avisou_yang = false
+VAR viu_logs = false
 VAR info_resistencia = false
 VAR info_vagas = false
 VAR fb_lembra = ""

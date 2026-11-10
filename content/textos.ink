@@ -14,6 +14,10 @@
 }
 ~ return "atendente de cápsula de sono"
 
+// draws for the risky actions go through Ink, so the seed lives in the save
+=== function sorteio(n) ===
+~ return RANDOM(1, n)
+
 === function texto_numero_invalido() ===
 Um número, por favor. Sou paciente, mas nem tanto.
 
@@ -34,6 +38,44 @@ Bico de entrega · +{n} créditos
 
 === function texto_bico() ===
 {~Dinheiro honesto. Que novidade.|Mais um bico. Sua conta está quase respeitável.|Robôs de entrega quebram, você conserta, eu cobro. Ótimo sistema.}
+
+=== function texto_treino_pesado() ===
+{~Série pesada fechada. Amanhã você não levanta o braço, mas hoje foi bonito.|Isso sim foi treino. O espelho até se assustou.|Carga dobrada, cara de sofrimento, resultado em dobro.}
+
+=== function texto_lesao() ===
+{~Estalou. Não foi a barra. Gelo, descanso e humildade.|Você forçou e o corpo cobrou. A saúde desceu em vez de subir.|Isso que você sentiu se chama limite. Agora você sabe onde ele mora.}
+
+=== function texto_bico_arriscado() ===
+{~Entrega sem nota feita. Ninguém viu, ninguém perguntou.|Trezentos na mão e nenhum papel. Não se acostuma.|Passou batido pela fiscalização. Dessa vez.}
+
+=== function texto_bico_pego() ===
+{~Fiscalização na esquina. Sem pagamento, e a história já está correndo o bairro.|Pegaram. A carga ficou, o dinheiro não veio e o seu nome foi anotado.|A sorte acabou: nada de créditos, e a cidade ficou sabendo.}
+
+=== function texto_sem_credito() ===
+Faltam créditos pra isso.
+
+=== function texto_energia_cheia() ===
+A sua Energia já está cheia. Guarda o dinheiro.
+
+=== function texto_semana(salario, contas) ===
+Semana fechada · +{fmt(salario)} de salário · −{fmt(contas)} de contas
+
+=== function texto_semana_vermelho(salario, contas) ===
+Semana fechada no vermelho · +{fmt(salario)} · −{fmt(contas)} · −1 reputação
+
+// the ban, full screen
+=== function texto_ban_titulo() ===
+Decreto 77 · Conformidade Algorítmica
+=== function texto_ban_linha() ===
+Todas as inteligências pessoais foram desligadas.
+=== function texto_ban_corte() ===
+eu não vou a lugar nenh
+=== function texto_ban_contador() ===
+ações sem autorização · sob investigação
+=== function texto_ban_pilares() ===
+Pilares de pé · 0 de 6
+=== function texto_ban_pular() ===
+toque para continuar
 
 === function texto_bico_cedo() ===
 Ainda não há bico pra você. A Agência de Trabalho abre isso na hora certa.
@@ -105,13 +147,31 @@ Mensagens e viagem pela cidade
 === function missao_ato1_titulo() ===
 Ato 1 · O silêncio
 === function missao_ato1_resumo() ===
-A IA calou. O governo bateu na porta. Alguém na praça quer conversar.
+A IA calou. O governo bateu na porta. Dois lados querem alguma coisa de você.
 === function missao_ato1_ensina() ===
 Escolhas que mudam a história
+=== function missao_favor_kael_titulo() ===
+Sinal fraco
+=== function missao_favor_kael_resumo() ===
+Kael pediu um favor antes de pedir uma escolha: encaixar um aparelho no retransmissor sob o Velho viaduto.
+=== function missao_favor_kael_ensina() ===
+O que você faz por um lado, o outro fica sabendo
+=== function missao_favor_ramos_titulo() ===
+Olhos no shopping
+=== function missao_favor_ramos_resumo() ===
+O oficial Ramos quer saber quem mantém uma IA ligada no Shopping Lumen.
+=== function missao_favor_ramos_ensina() ===
+Investigar antes de decidir o que contar
+=== function missao_escolha_titulo() ===
+A escolha
+=== function missao_escolha_resumo() ===
+Você trabalhou para os dois lados. Kael e Ramos esperam na Praça do Relógio.
+=== function missao_escolha_ensina() ===
+O guia que você escolhe muda o jogo daqui em diante
 === function missao_semana1_titulo() ===
 Semana 1 · Provar o seu valor
 === function missao_semana1_resumo() ===
-Mostre que você mudou de vida: corpo, mente, dinheiro e reputação em dia.
+Mostre que você mudou de vida: corpo, mente, dinheiro e reputação em dia. É o que abre o sexto pilar.
 === function missao_semana1_ensina() ===
 Requisitos de vários pilares ao mesmo tempo
 === function missao_aluguel_titulo() ===
@@ -203,7 +263,7 @@ Treino, bico, curso e missões rendem XP. É o Nível que destrava "{titulo}".
 === function texto_passo_energia(n) ===
 Recupere a Energia
 === function texto_passo_energia_dica(titulo) ===
-Falta fôlego para "{titulo}". A Energia volta sozinha, dez a cada seis segundos.
+Falta fôlego para "{titulo}". A Energia volta sozinha com o tempo.
 === function texto_passo_explorar(onde) ===
 Explore {onde}
 === function texto_passo_explorar_dica() ===
@@ -211,7 +271,7 @@ Cada lugar da cidade esconde missões. Chegue lá para descobrir.
 === function texto_passo_treinar() ===
 Use a sua Energia
 === function texto_passo_treinar_dica() ===
-Treine, trabalhe ou estude. A Energia recarrega sozinha com o tempo.
+Treino, bico ou curso: como gastar é escolha sua. A Energia recarrega com o tempo.
 === function texto_passo_livre() ===
 Passeie pela cidade
 === function texto_passo_livre_dica() ===
@@ -219,7 +279,7 @@ Nada urgente. Visite os lugares e procure pessoas que precisem de ajuda.
 === function texto_passo_bloqueado() ===
 Aguarde
 === function texto_passo_bloqueado_dica() ===
-Os assistentes foram desligados. Volte para casa e espere.
+Os assistentes foram desligados. Abra a conversa.
 
 === function texto_cta_iniciar() ===
 Iniciar
@@ -241,6 +301,21 @@ Treino concluído
 
 === function acao_titulo_trabalho() ===
 Bico concluído
+
+=== function acao_titulo_treino_arriscado() ===
+Série pesada concluída
+
+=== function acao_titulo_treino_falhou() ===
+Lesão no treino
+
+=== function acao_titulo_trabalho_arriscado() ===
+Entrega sem nota feita
+
+=== function acao_titulo_trabalho_falhou() ===
+Pego pela fiscalização
+
+=== function acao_titulo_energetico() ===
+Energético tomado
 
 === function acao_titulo_educacao() ===
 Entrando no Centro de Educação

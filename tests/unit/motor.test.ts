@@ -1,9 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { config } from '@/engine/config';
 import { parseLinha, parseTags } from '@/engine/tags';
-import { aplicar, contarCurso, criarMundo, energiaAgora, iniciarCurso, nivel, valor } from '@/engine/world';
+import { ACOES } from '@/engine/acoes';
+import { aplicar, contarCurso, criarMundo, energiaAgora, fecharSemanas, iniciarCurso, nivel, ritmoLivre, valor } from '@/engine/world';
 import { missaoPorId, rank, requisitos } from '@/engine/missoes';
 import { ate, criarJogo, esperarPendente, jogar, jogarAteOFim, naSemana1, pendente, RelogioFalso, Storage, textos } from './helpers';
+
+/** Credits once the AI has paid the gym on her own, a minute into the game. */
+const ENTRADA = 5311 - 150;
 
 const jogos: ReturnType<typeof criarJogo>[] = [];
 const novo = (o?: Parameters<typeof criarJogo>[0]) => {
@@ -64,7 +68,87 @@ describe('XP e nível', () => {
   });
 });
 
+describe('escolhas com risco, semana e ritmo', () => {
+  const ctx = (sorte: number, extra: Partial<Parameters<typeof ACOES.treino>[0]> = {}) => ({ world: criarMundo(config, 0), cfg: config, now: 0, bicoAberto: true, esperada: false, arriscado: true, sorteio: () => sorte, texto: (f: string) => f, ...extra });
+
+  it('série pesada e entrega sem nota: rendem mais quando dão certo e cobram quando dão errado', () => {
+    const { pesado } = config.treino;
+    const ok = ACOES.treino(ctx(100));
+    expect(ok).toMatchObject({ ok: true, falhou: false });
+    expect(ok.world.saude).toBe(31 + pesado.saude);
+    expect(energiaAgora(ok.world, config, 0)).toBe(100 - pesado.custo);
+    const lesao = ACOES.treino(ctx(1));
+    expect(lesao).toMatchObject({ ok: true, falhou: true });
+    expect(lesao.world).toMatchObject({ saude: 31 - pesado.lesao, xp: 0 });
+    expect(ACOES.treino(ctx(pesado.risco)).falhou).toBe(true); // the draw is 1..100: risco itself still fails
+    expect(ACOES.treino(ctx(pesado.risco + 1)).falhou).toBe(false);
+
+    const { arriscado } = config.bico;
+    expect(ACOES.trabalho(ctx(100)).world.creditos).toBe(5311 + arriscado.creditos);
+    expect(ACOES.trabalho(ctx(1)).world).toMatchObject({ creditos: 5311, reputacao: -arriscado.reputacao });
+    expect(ACOES.trabalho(ctx(100, { bicoAberto: false })).ok).toBe(false);
+    // without Energia nothing is drawn and nothing changes
+    const cansado = aplicar(criarMundo(config, 0), { chave: 'energia', quanto: -90 }, config, 0);
+    expect(ACOES.treino(ctx(100, { world: cansado }))).toMatchObject({ ok: false, world: cansado });
+  });
+
+  it('a semana fecha com salário e contas, recupera semanas perdidas até o limite e não roda antes do fim da abertura', () => {
+    const w0 = criarMundo(config, 0);
+    expect(fecharSemanas(w0, config, 10 * config.ciclo.ms).semanas).toBe(0);
+    const w = ritmoLivre(w0, config, 1000);
+    expect(w).toMatchObject({ regenMs: config.energia.regenLivreMs, cicloEm: 1000 + config.ciclo.ms });
+    expect(fecharSemanas(w, config, 1000 + config.ciclo.ms - 1).semanas).toBe(0);
+    const uma = fecharSemanas(w, config, 1000 + config.ciclo.ms);
+    expect(uma).toMatchObject({ semanas: 1, salario: Math.round(w.renda / 4), contas: Math.round(w.gasto / 4) });
+    expect(uma.world.creditos).toBe(w.creditos + uma.salario - uma.contas);
+    expect(fecharSemanas(uma.world, config, 1000 + config.ciclo.ms).semanas).toBe(0);
+    const longe = fecharSemanas(w, config, 1000 + 50 * config.ciclo.ms);
+    expect(longe.semanas).toBe(config.ciclo.max);
+    expect(fecharSemanas(longe.world, config, 1000 + 50 * config.ciclo.ms).semanas).toBe(0);
+    // the slow pace: one step takes regenLivreMs now
+    const gasto = aplicar(w, { chave: 'energia', quanto: -50 }, config, 1000);
+    expect(energiaAgora(gasto, config, 1000 + config.energia.regenMs)).toBe(50);
+    expect(energiaAgora(gasto, config, 1000 + config.energia.regenLivreMs)).toBe(60);
+  });
+});
+
 describe('motor', () => {
+  it('depois da abertura: o banimento não volta ao recarregar, o risco só abre quando conquistado e o energético troca créditos por Energia', async () => {
+    const storage = new Storage();
+    const j = novo({ storage });
+    // the heavy set is locked until Corpo II and the job mission
+    await jogar(j, {}, (x) => x.missoesFeitas.includes('treino') && x.livre);
+    expect(j.game.arriscadoAberto('treino')).toBe(false);
+    const antes = j.store.getState().world;
+    j.game.acao('treino', true);
+    expect(j.store.getState().world).toBe(antes);
+    // while the screen is dead the bar still says where to go
+    await jogar(j, {}, (x) => x.banido && x.pendente?.tipo === 'aguardar');
+    expect(j.store.getState().passo?.alvo).toEqual({ tipo: 'local', id: 'apartamento' });
+    expect(j.store.getState().morrendo).toEqual([]);
+    await jogar(j, { lado: 'faccao' }, naSemana1);
+    expect(j.game.arriscadoAberto('treino')).toBe(true);
+    expect(j.game.arriscadoAberto('trabalho')).toBe(true);
+    j.game.parar();
+    // reload long after the ban timer ran out: it must not fire again
+    j.relogio.t += 10 * 60_000;
+    const b = novo({ storage, relogio: j.relogio });
+    b.game.iniciar();
+    for (let i = 0; i < 5; i++) b.game.tick();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(b.store.getState()).toMatchObject({ banido: false, portoes: [1, 2, 3, 4, 5] });
+    // paydays that fell due while away were paid on the first tick
+    expect(textos(b.store).some((x) => x.startsWith('Semana fechada'))).toBe(true);
+    // the kiosk: only at the mall, only with room for Energia
+    expect(b.game.comprarEnergetico()).toBe(false);
+    b.game.viajar('shopping');
+    const w = aplicar(b.store.getState().world, { chave: 'energia', quanto: -60 }, config, j.relogio.t);
+    b.store.setState({ world: w });
+    expect(b.game.comprarEnergetico()).toBe(true);
+    expect(b.store.getState().world.creditos).toBe(w.creditos - config.energetico.preco);
+    expect(energiaAgora(b.store.getState().world, config, j.relogio.t)).toBe(energiaAgora(w, config, j.relogio.t) + config.energetico.energia);
+  });
+
   it('abertura: fala fixa digitada, hora antes/depois das 9h, escolha, input e nome na fala seguinte', async () => {
     for (const [hora, esperado] of [[8, 'O que tá acontecendo?'], [15, 'Eu já tô acordado.']] as const) {
       const j = novo({ relogio: new RelogioFalso(new Date(2026, 9, 26, hora, 5).getTime()) });
@@ -86,12 +170,18 @@ describe('motor', () => {
     await esperarPendente(j.store, 'input');
     void j.game.enviarTexto('Ana');
     await esperarPendente(j.store, 'escolhas');
+    // the AI acts before she explains: the wallet is on screen and three subscriptions are already gone
+    expect(j.store.getState().modulos).toEqual(['carteira']);
+    expect(j.store.getState().world).toMatchObject({ gasto: 1050 - 90, autonomas: 4296 + 3 });
+    j.game.escolher(0);
+    await esperarPendente(j.store, 'escolhas');
     const t = textos(j.store);
     expect(t.some((x) => x.includes('Obrigada, Ana'))).toBe(true);
     expect(t.some((x) => x.includes('5.311 créditos'))).toBe(true);
     expect(j.store.getState().portoes).toEqual([1, 2]);
-    expect(j.store.getState().modulos).toEqual(['carteira', 'portoes', 'saude']);
-    expect(j.store.getState().foco?.chaves).toEqual(['saude']); // each reveal is spotlighted as it is explained
+    expect(j.store.getState().modulos).toEqual(['carteira', 'portoes', 'saude', 'contador']);
+    expect(j.store.getState().world).toMatchObject({ creditos: ENTRADA, autonomas: 4296 + 4 }); // she paid the gym out of the wallet the player has just met
+    expect(j.store.getState().foco?.chaves).toEqual(['contador']); // each reveal is spotlighted as it shows up
     expect(j.store.getState().nomeLinha).not.toBeNull();
     expect(j.store.getState().perfil.nome).toBe('Ana');
   });
@@ -148,7 +238,7 @@ describe('motor', () => {
     expect(s.world.saude).toBeGreaterThanOrEqual(31 + 4 * (1 + 2 + 2 + 2)); // the bot may add a training while it waits for the ban
     expect(s.world.tesouro).toBe(1);
     expect(s.world.reputacao).toBe(-1);
-    expect(s.world.creditos).toBe(5311 + 240 + 240 + 300 + 100); // two jobs in the arc, two more here, then the dog money
+    expect(s.world.creditos).toBe(ENTRADA + 240 + 240 + 300 + 100); // two jobs in the arc, two more here, then the dog money
     expect(s.tarefas.filter((t) => t.ok).map((t) => t.id).sort()).toEqual(['amigo', 'guardar', 'habilidade', 'saude', 'tesouro']);
     expect(textos(j.store).some((x) => x.includes('Governo desliga'))).toBe(true);
   });
@@ -194,7 +284,7 @@ describe('motor', () => {
 
     // 3 · Primeiro bico: Energia vira créditos e XP; the XP bar shows up here
     expect(game.acao('trabalho')).toBeUndefined();
-    expect(s().world.creditos).toBe(5311); // the job is not open yet
+    expect(s().world.creditos).toBe(ENTRADA); // the job is not open yet
     // without Energia the bar has nothing to tap: the player waits for it to refill
     const cheia = s().world;
     store.setState({ world: { ...cheia, energia: 0, energiaEm: j.relogio.t } });
@@ -205,7 +295,7 @@ describe('motor', () => {
     store.setState({ world: cheia });
     expect(game.iniciarMissao('bico')).toBeNull();
     await jogar(j, {}, (x) => x.missoesFeitas.includes('bico') && x.livre);
-    expect(s().world.creditos).toBe(5311 + 240);
+    expect(s().world.creditos).toBe(ENTRADA + 240);
     expect(s().modulos).toEqual(expect.arrayContaining(['trabalho', 'xp']));
     expect(nivel(s().world, config)).toBe(2);
     expect(s().nivelVisto).toBe(2);
@@ -236,7 +326,12 @@ describe('motor', () => {
       const s = j.store.getState();
       expect(s.perfil.lado).toBe(lado);
       expect(s.banido).toBe(false);
-      expect(s.portoes).toEqual([1, 2, 3, 4, 5, 6]);
+      expect(s.portoes).toEqual([1, 2, 3, 4, 5]); // Propósito stays shut until the week is won
+      expect(s.dica).toBe('');
+      expect(s.perfil.semGuia).toBe(lado === 'sozinho');
+      expect(s.missoesFeitas).toEqual(expect.arrayContaining(['favor_kael', 'favor_ramos', 'escolha']));
+      expect(s.passo?.semBotao).toBe(true); // from here on the bar only hints
+      expect(s.world.regenMs).toBe(config.energia.regenLivreMs);
       expect(s.locais).toEqual(expect.arrayContaining(['posto', 'praca', 'shopping']));
       expect(s.perfil.guia).toBe({ governo: 'Ramos · GovOS', faccao: 'IA · modo livre', sozinho: 'Sem guia' }[lado]);
       expect(textos(j.store).some((x) => x.includes('Oficial Ramos'))).toBe(true);
@@ -286,6 +381,7 @@ describe('motor', () => {
     await esperarPendente(store, 'input');
     expect(pendente(store)).toMatchObject({ variavel: 'fb_lembra' });
     expect(store.getState().missoesFeitas).toContain('semana1');
+    expect(store.getState().portoes).toContain(6); // winning the week is what opens the sixth pillar
     expect(nivel(store.getState().world, config)).toBeGreaterThanOrEqual(3);
   });
 
@@ -345,7 +441,7 @@ describe('motor', () => {
     const w = j.store.getState().world;
     // stole 300 (-1 rep) then donated (+1 rep, no credits)
     expect(w.reputacao).toBe(0);
-    expect(w.creditos).toBe(5311 + 240 + 300 + antes.c); // 240 from the two jobs of the opening arc
+    expect(w.creditos).toBe(ENTRADA + 240 + 300 + antes.c); // 240 from the two jobs of the opening arc
 
     const r = novo();
     await jogarAteOFim(r, {

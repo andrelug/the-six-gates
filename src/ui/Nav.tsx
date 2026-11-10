@@ -17,7 +17,7 @@ const ITENS: { id: Pagina; rotulo: string; ico: NomeIcone; cor: string; modulo?:
 ];
 
 /** Speaker shown for each guide (the AI before you pick a side). */
-export const ROSTO_GUIA: Record<string, string> = { governo: 'Ramos', faccao: 'Kael', sozinho: '', '': 'IA' };
+export const ROSTO_GUIA: Record<string, string> = { governo: 'Ramos', faccao: 'IA', sozinho: '', '': 'IA' };
 
 export default function Nav({ pagina, ir }: { pagina: Pagina; ir: (p: Pagina) => void }) {
   const modulos = useEstado((e) => e.modulos) as string[];
@@ -25,6 +25,8 @@ export default function Nav({ pagina, ir }: { pagina: Pagina; ir: (p: Pagina) =>
   const pendente = useEstado((e) => e.pendente);
   const banido = useEstado((e) => e.banido);
   const guia = useEstado((e) => e.perfil.guia);
+  const semGuia = useEstado((e) => e.perfil.semGuia);
+  const morrendo = useEstado((e) => e.morrendo);
   const lado = useEstado((e) => e.perfil.lado);
   const revelando = useEstado((e) => e.revelando);
   const iaOculta = useOculto('ia');
@@ -34,7 +36,7 @@ export default function Nav({ pagina, ir }: { pagina: Pagina; ir: (p: Pagina) =>
   const abertos = ITENS.filter((i) => !i.modulo || modulos.includes(i.modulo));
   // "Início" alone is no menu: it shows up with the first real page, so each reveal stays one thing
   const itens = abertos.length > 1 ? abertos : [];
-  const mudo = banido || guia === 'Sem guia';
+  const mudo = banido || semGuia;
   const rostoGuia = ROSTO_GUIA[lado] ?? 'IA';
   return (
     <nav className={s.nav} aria-label="Menu">
@@ -46,6 +48,7 @@ export default function Nav({ pagina, ir }: { pagina: Pagina; ir: (p: Pagina) =>
             key={i.id}
             data-foco={i.id}
             data-oculto={revelando.includes(i.id) ? '' : undefined}
+            data-morto={morrendo.includes(i.id) ? '' : undefined}
             type="button"
             style={{ ['--i' as string]: k, ['--c' as string]: i.cor } as CSSProperties}
             className={`${s.navItem} ${ativo ? s.navAtivo : ''} ${i.id === 'cidade' && alvoCidade ? s.pulso : ''} ${desligado ? s.dim : ''}`}

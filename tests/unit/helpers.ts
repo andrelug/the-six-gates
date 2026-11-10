@@ -71,7 +71,7 @@ export async function jogar(j: ReturnType<typeof criarJogo>, pol: Politica, para
       }
       return 0;
     });
-  for (let passos = 0; passos < 800; passos++) {
+  for (let passos = 0; passos < 1500; passos++) {
     const s = store.getState();
     if (parar(s)) return;
     const p = s.pendente;
@@ -88,7 +88,7 @@ export async function jogar(j: ReturnType<typeof criarJogo>, pol: Politica, para
       else if (alvo.tipo === 'acao') game.acao(alvo.id);
       else if (alvo.tipo === 'espera') j.relogio.t += 6000;
     }
-    if (!p && s.tarefas.length && !s.banido) j.relogio.t += 7000; // idle with tasks open: let the ban timer run
+    if (!p && s.tarefas.length && !s.banido && s.world.cicloEm === null) j.relogio.t += 7000; // idle with tasks open: let the ban timer run (never once the weeks are closing: paydays would move the credits under the test)
     game.tick();
     await new Promise((r) => setTimeout(r, 0));
   }
@@ -96,5 +96,5 @@ export async function jogar(j: ReturnType<typeof criarJogo>, pol: Politica, para
 }
 
 export const noBanimento = (s: Estado) => s.banido && !s.glitch && s.portoes.length === 0;
-export const naSemana1 = (s: Estado) => s.mensagens.some((m) => m.knot && !m.usada) && s.livre;
+export const naSemana1 = (s: Estado) => s.missoesFeitas.includes('ato1') && s.mensagens.some((m) => m.knot && !m.usada) && s.livre;
 export const jogarAteOFim = (j: ReturnType<typeof criarJogo>, pol: Politica = {}) => jogar(j, pol, noBanimento);

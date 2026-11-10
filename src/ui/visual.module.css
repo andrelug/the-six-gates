@@ -40,6 +40,10 @@
 .chipsEfeito { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .efeito { display: inline-flex; align-items: center; gap: 4px; padding: 2px 12px 2px 8px; font-family: var(--f-tit); font-style: italic; font-size: 15px; font-weight: 800; background: var(--tinta); color: var(--lima); clip-path: var(--corte); animation: efeitoIn .5s cubic-bezier(.2,1.4,.4,1) both; }
 .efeitoNeg { color: #ff8aa8; }
+/* the risky version went wrong: the same card, drained */
+.cartaoFalhou .cartaoArte { filter: grayscale(1) contrast(1.25); }
+.rosto[data-cara='glitch'] img { animation: caraGlitch .5s steps(2) infinite; }
+@keyframes caraGlitch { 0% { transform: none; filter: none; } 50% { transform: translateX(2px) skewX(-6deg); filter: hue-rotate(90deg) saturate(2); } 100% { transform: translateX(-2px); filter: contrast(1.4); } }
 @keyframes efeitoIn { from { opacity: 0; transform: translateY(8px) scale(.5); } to { opacity: 1; transform: none; } }
 
 .cartaoViagem { position: relative; display: flex; align-items: center; gap: 12px; padding: 12px 26px 12px 12px; overflow: hidden; color: #fff; background: linear-gradient(120deg, hsl(var(--h) 60% 22%), hsl(var(--h) 70% 34%)); background-size: cover; background-position: center;

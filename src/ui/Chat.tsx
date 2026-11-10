@@ -6,9 +6,10 @@ import { srcCorpo } from './arte';
 import { LinhaRica, type Contexto } from './ChatRico';
 import { useEstado, useJogo } from './contexto';
 import { ROSTO_GUIA } from './Nav';
-import { idDe } from './personagens';
+import { idDe, personagemDe } from './personagens';
 import { Rosto } from './Rosto';
 import { R } from './rotulos';
+import j from './jogo.module.css';
 import s from './ui.module.css';
 import v from './visual.module.css';
 
@@ -95,6 +96,7 @@ export default function Chat() {
   const banido = useEstado((e) => e.banido);
   const lado = useEstado((e) => e.perfil.lado);
   const guia = useEstado((e) => e.perfil.guia) || 'IA pessoal';
+  const semGuia = useEstado((e) => e.perfil.semGuia);
   const localId = useEstado((e) => e.localAtual);
   const locais = useEstado((e) => e.locaisView);
   const [texto, setTexto] = useState('');
@@ -182,7 +184,8 @@ export default function Chat() {
   // whoever spoke last stands big beside the chat while they talk, then slips away (so it never sits on top of the map)
   let falante: Linha | undefined;
   for (let k = linhas.length - 1; k >= 0 && !falante; k--) if (linhas[k].tipo === 'ia' || linhas[k].tipo === 'npc') falante = linhas[k];
-  const idFalante = falante ? (falante.tipo === 'ia' ? idDe(quemGuia || 'IA') : idDe(falante.quem ?? '')) : '';
+  // an alias resolves to its cast member (ECO is the AI speaking through Kael's device)
+  const idFalante = falante ? (falante.tipo === 'ia' ? idDe(quemGuia || 'IA') : (personagemDe(falante.quem ?? '')?.id ?? idDe(falante.quem ?? ''))) : '';
   const falando = !!falante && digitando?.id === falante.id;
   // ids of the speaker line whose portrait is leaving / gone; a new line brings the portrait back
   const [saiu, setSaiu] = useState<{ saindo: number; fora: number }>({ saindo: -1, fora: -1 });
@@ -199,9 +202,10 @@ export default function Chat() {
   }, [falando, falaId]);
   const retratoViva = falaId >= 0 && falaId !== jaHavia && saiu.fora !== falaId;
 
+  const mudo = banido || semGuia;
   if (!montado) {
     return (
-      <button type="button" className={`${s.fab} ${precisaDeVoce ? s.fabChama : ''}`} onClick={() => game.alternarChat(true)} aria-label={R.abrirChat}>
+      <button type="button" className={`${s.fab} ${precisaDeVoce ? s.fabChama : ''} ${mudo ? j.fabMudo : ''}`} onClick={() => game.alternarChat(true)} aria-label={R.abrirChat}>
         {quemGuia ? <span className={s.fabRosto}><Rosto quem={quemGuia} tam={58} borda={false} /></span> : <span className={s.orb} aria-hidden="true" />}
         {naoLidas > 0 && <span className={s.badge}>{naoLidas}</span>}
       </button>
@@ -211,9 +215,8 @@ export default function Chat() {
   const opcoes = pendente?.tipo === 'escolhas' ? pendente.opcoes : [];
   const soAcoes = opcoes.length > 0 && opcoes.every((o) => o.acao);
   const aviso = pendente?.tipo === 'input' ? R.dicaInput : opcoes.length ? (soAcoes ? R.dicaAcao : R.dicaEscolha) : dica || R.dicaPular;
-  const mudo = banido || guia === 'Sem guia';
   const estado = pensando || digitando ? R.digitando : mudo ? R.iaOff : (R.statusGuia[lado] ?? R.iaOnline);
-  const retrato = centro || saindo || !retratoViva ? null : srcCorpo(idFalante);
+  const retrato = centro || saindo || !retratoViva ? null : srcCorpo(idFalante, falante?.cara);
 
   return (
     <>
@@ -230,7 +233,7 @@ export default function Chat() {
       aria-label="Conversa"
     >
       <div className={s.chatTop}>
-        {quemGuia ? <Rosto quem={quemGuia} tam={44} /> : <span className={s.orb} aria-hidden="true" />}
+        {quemGuia ? <span className={mudo ? j.fabMudo : undefined}><Rosto quem={quemGuia} tam={44} /></span> : <span className={s.orb} aria-hidden="true" />}
         <div>
           <span className={s.dialogo}>{R.dialogo}</span>
           <b>{guia}</b>

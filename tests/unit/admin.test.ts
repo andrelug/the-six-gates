@@ -15,7 +15,9 @@ describe('mapa da história', () => {
     expect(pontos('decisao')[0].opcoes.map((o) => o.sai)).toEqual(['semana1_abre', 'semana1_abre', 'semana1_abre']);
     expect(pontos('shopping')[0].opcoes).toHaveLength(6); // a sexta só aparece depois de achar a pista
     expect(pontos('casa')).toHaveLength(3);
-    expect(pontos('cadastro')).toEqual([]);
+    expect(pontos('cadastro')[0].opcoes).toHaveLength(3); // her first act without asking
+    expect(pontos('favor_ramos').map((p) => p.opcoes.length).sort()).toEqual([3, 4]);
+    expect(pontos('favor_kael')[0].opcoes).toHaveLength(2);
   });
 
   it('a chave cena|texto é única e cabe no limite do endpoint (200)', () => {

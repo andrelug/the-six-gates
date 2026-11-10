@@ -6,8 +6,10 @@ export type TipoLinha = 'ia' | 'npc' | 'narr' | 'eu' | 'sis' | 'nota' | 'news' |
 
 /** Something the player did in the world (train, work, study, travel), shown as a result card and played as a short animation. */
 export interface Evento {
-  id: 'treino' | 'trabalho' | 'educacao' | 'viagem';
+  id: 'treino' | 'trabalho' | 'educacao' | 'viagem' | 'energetico';
   efeitos: { chave: string; quanto: number }[];
+  /** The risky variant went wrong (injury, caught): the card reads as a loss. */
+  falhou?: boolean;
   de?: string;
   para?: string;
   /** First time in that place. */
@@ -22,6 +24,8 @@ export interface Linha {
   texto: string;
   titulo?: string;
   ev?: Evento;
+  /** The AI's expression on this line (#cara:<nome>): picks the face art. */
+  cara?: string;
 }
 
 export interface Mensagem {
@@ -43,7 +47,7 @@ export interface LocalView {
 
 export interface Toast {
   id: number;
-  tipo: 'portao' | 'tarefa' | 'local' | 'mensagem' | 'missao' | 'mecanica' | 'nivel';
+  tipo: 'portao' | 'tarefa' | 'local' | 'mensagem' | 'missao' | 'mecanica' | 'nivel' | 'semana';
   texto: string;
 }
 
@@ -61,6 +65,8 @@ export interface Passo {
   dica: string;
   cta: string;
   ensina?: string;
+  /** A hint only: the bar says what to do but has no button that does it (after the opening arc the player decides). */
+  semBotao?: boolean;
   /** `espera` = nothing to tap, the world has to move first (Energia refilling): no button. */
   alvo: { tipo: 'chat' | 'local' | 'acao' | 'missao' | 'espera'; id: string };
 }
@@ -83,6 +89,8 @@ export interface Perfil {
   backup: boolean;
   lado: string;
   guia: string;
+  /** Nobody answers free text: the AI was shut down and no side was chosen yet, or the player walks alone. */
+  semGuia: boolean;
 }
 
 export interface Estado {
@@ -104,6 +112,10 @@ export interface Estado {
   dica: string;
   banido: boolean;
   glitch: boolean;
+  /** The ban is playing full screen (decree, cut sentence, frozen counter). Never saved. */
+  banCena: boolean;
+  /** Things switching off one by one as the ban hits (keys match `data-foco`), newest first. Never saved. */
+  morrendo: string[];
   /** Waiting for the AI to answer free text. */
   pensando: boolean;
   /** Last clock reading, refreshed every second so real-time meters redraw. */
@@ -138,7 +150,7 @@ export interface Estado {
   /** The animation playing over the screen right now (cosmetic: the game never waits for it). */
   animacao: { n: number; ev: Evento } | null;
   /** Mission and course texts from the script, read once at start. */
-  textos: { missoes: Record<string, { titulo: string; resumo: string; ensina: string }>; cursos: Record<string, string> };
+  textos: { missoes: Record<string, { titulo: string; resumo: string; ensina: string }>; cursos: Record<string, string>; ban: Record<'titulo' | 'linha' | 'corte' | 'contador' | 'pilares' | 'pular', string> };
 }
 
 export const LIMITE_LINHAS = 200;
@@ -157,11 +169,13 @@ export function estadoInicial(world: World, agora: number): Estado {
     mensagens: [],
     tarefas: [],
     tarefasFeitas: [],
-    perfil: { nome: '', cidade: '', emprego: '', backup: false, lado: '', guia: '' },
+    perfil: { nome: '', cidade: '', emprego: '', backup: false, lado: '', guia: '', semGuia: false },
     cena: '',
     dica: '',
     banido: false,
     glitch: false,
+    banCena: false,
+    morrendo: [],
     pensando: false,
     agora,
     incompativel: false,
@@ -183,7 +197,7 @@ export function estadoInicial(world: World, agora: number): Estado {
     revelando: [],
     nomeLinha: null,
     nomeVoando: false,
-    textos: { missoes: {}, cursos: {} },
+    textos: { missoes: {}, cursos: {}, ban: { titulo: '', linha: '', corte: '', contador: '', pilares: '', pular: '' } },
   };
 }
 

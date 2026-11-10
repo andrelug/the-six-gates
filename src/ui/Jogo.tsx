@@ -8,12 +8,14 @@ import { criarStore } from '@/engine/store';
 import { criarMundo } from '@/engine/world';
 import roteiro from '@content/story.json';
 import Animacao from './Animacao';
+import Banimento from './Banimento';
 import Chat from './Chat';
 import Foco from './Foco';
 import { JogoContext, NavContext, useEstado, type Pagina } from './contexto';
 import Nav from './Nav';
 import NomeVoando from './NomeVoando';
 import Passo from './Passo';
+import Som from './Som';
 import { Cidade, Local } from './paginas/cidade';
 import { Inicio, Mensagens, Missoes, Perfil } from './paginas/geral';
 import { R } from './rotulos';
@@ -118,6 +120,8 @@ function Tela() {
       <NomeVoando />
       <Foco />
       <Chat />
+      <Banimento />
+      <Som />
     </div>
     </NavContext.Provider>
   );

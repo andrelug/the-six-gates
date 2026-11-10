@@ -29,7 +29,10 @@ export function Inicio() {
   const feed = linhas.filter((l) => l.tipo === 'sis' || l.tipo === 'nota').slice(-6).reverse();
   const aqui = locais.find((l) => l.id === atual);
   const guia = personagemDe(ROSTO_GUIA[perfil.lado] ?? 'IA');
-  const corpo = guia ? srcCorpo(guia.id) : null;
+  // with nobody on the line the home screen stands empty: her absence is the point
+  // she keeps the face of the last thing she said
+  const cara = [...linhas].reverse().find((l) => l.tipo === 'ia')?.cara;
+  const corpo = guia && !perfil.semGuia ? srcCorpo(guia.id, cara) : null;
   const fundo = (aqui && srcLocal(aqui.id)) || srcCidade();
   let i = 0;
   const idx = () => ({ ['--i' as string]: ++i });

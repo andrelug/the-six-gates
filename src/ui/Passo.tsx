@@ -1,8 +1,9 @@
 'use client';
 
 import { useEstado, useIr, useJogo, useOculto } from './contexto';
-import { Icone, IconeArte } from './icones';
+import { IconeArte } from './icones';
 import { R } from './rotulos';
+import j from './jogo.module.css';
 import s from './ui.module.css';
 
 /** "Next step": always shows the one thing to do now and a button that does it. */
@@ -23,19 +24,14 @@ export default function Passo() {
     else if (game.iniciarMissao(alvo.id, true) === 'ocupado') game.alternarChat(true);
   };
   return (
-    <aside className={`${s.passo} ${banido ? s.passoBanido : ''}`} key={passo.titulo} aria-label={R.proximo} data-foco="passo" {...oculto}>
+    <aside className={`${s.passo} ${banido ? s.passoBanido : ''} ${passo.semBotao ? j.passoDica : ''}`} key={passo.titulo} aria-label={R.proximo} data-foco="passo" {...oculto}>
       <span className={s.passoIco}><IconeArte arte="proximo" nome="alvo" tam={34} /></span>
       <div className={s.passoTxt}>
-        <span className={s.rotulo}>{R.proximo}</span>
+        <span className={s.rotulo}>{passo.semBotao ? R.dicaPasso : R.proximo}</span>
         <b>{passo.titulo}</b>
-        <span>{passo.dica}</span>
-        {passo.ensina && (
-          <span className={s.ensina}>
-            <Icone nome="lampada" tam={13} /> {R.mecanica}: {passo.ensina}
-          </span>
-        )}
+        <span className={passo.semBotao ? j.dicaVisivel : undefined}>{passo.dica}</span>
       </div>
-      {alvo.tipo !== 'espera' && (
+      {alvo.tipo !== 'espera' && !passo.semBotao && (
         <button type="button" className={`${s.btn} ${s.btnPrim} ${s.passoCta}`} onClick={agir}>
           {passo.cta} <span aria-hidden="true">»</span>
         </button>

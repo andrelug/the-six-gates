@@ -66,7 +66,12 @@ Um relógio parado e bancos vazios. O lugar preferido de quem prefere não ser v
 { lado == "governo": Ramos · GovOS }
 { lado == "faccao": IA · modo livre }
 { lado == "sozinho": Sem guia }
-{ lado == "": IA pessoal }
+{ lado == "" and silencio: Assistente · modo simples }
+{ lado == "" and not silencio: IA pessoal }
+
+// nobody answers free text: the AI is off and no side was chosen, or the player walks alone
+=== function sem_guia() ===
+~ return lado == "sozinho" or (lado == "" and silencio)
 
 === function texto_sem_guia() ===
 Ninguém responde. Você está sozinho, como pediu.
