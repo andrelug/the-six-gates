@@ -46,8 +46,11 @@ async function jogar(page: Page, ate: (page: Page) => Promise<boolean>, lado = '
 async function minimizar(page: Page) {
   const x = page.getByRole('button', { name: 'Minimizar' });
   await x.waitFor({ timeout: 3000 }).catch(() => {}); // the sheet may still be mounting after a reload
-  if (await x.count()) await x.click();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  // on a phone a spotlight can slide the sheet away under the pointer, and the tap then lands on the page behind: tap again until it is gone
+  await expect(async () => {
+    if (await x.count()) await x.click({ timeout: 2000 });
+    await expect(page.getByRole('dialog')).toHaveCount(0, { timeout: 1500 });
+  }).toPass({ timeout: 20_000 });
 }
 
 const naSemana1 = (p: Page) => p.getByText('Mensagem nova · Banco Lumen').first().isVisible();
