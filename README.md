@@ -1,6 +1,6 @@
 # The Six Gates · prólogo + Ato 1 (Semana 1)
 
-Plano completo em [docs/SPEC.md](docs/SPEC.md); referência visual em [docs/prototipo.html](docs/prototipo.html).
+Referência visual em [docs/prototipo.html](docs/prototipo.html). A especificação e o plano de implementação (o "SPEC" citado abaixo) não fazem parte do repositório: ficam na pasta local `interno/`, ignorada pelo git.
 
 ```bash
 npm install
