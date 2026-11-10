@@ -8,7 +8,9 @@ import s from './ui.module.css';
 const MS = 2200;
 /** The spotlight fades out over this long before it unmounts. */
 const SAI_MS = 380;
-const espera = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+/** `?velocidade=N` speeds the story up (tests): the spotlight keeps pace, or on a phone it would hold the chat off screen while the story has already moved on. */
+const VELOCIDADE = typeof location === 'undefined' ? 1 : Math.max(1, Number(new URLSearchParams(location.search).get('velocidade')) || 1);
+const espera = (ms: number) => new Promise<void>((r) => setTimeout(r, ms / VELOCIDADE));
 const visivel = (el: HTMLElement | null) => (el && el.getBoundingClientRect().width > 0 ? el : null);
 
 interface Alvo {
